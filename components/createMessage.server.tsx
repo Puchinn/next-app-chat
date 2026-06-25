@@ -23,16 +23,13 @@ export function CreateMessageServerAction({
         <div className="flex items-center w-full gap-x-4">
           <label htmlFor="message" className="w-full">
             <input
-              className="border rounded-2xl p-3 text-black/90 border-gray-300 w-full"
+              className="input"
               placeholder="Escribir mensaje..."
               name="message"
               id="message"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded-full cursor-pointer p-2 text-2xl border bg-gray-100 border-gray-300"
-          >
+          <button type="submit" className="icon-btn" aria-label="Enviar">
             📤
           </button>
         </div>

@@ -68,15 +68,22 @@ export function MessagesModule({ userId }: ListMessagesProps) {
   }, []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <ChatList profilesList={profiles} messages={optimisticList} />
 
-      <CreateMessageServerAction onSendMessage={onSendMessage} />
-      <TestChannel
-        onDeleteMessage={deleteMessage}
-        onUpdateList={onUpdateListMessage}
-        userId={userId}
-      />
+      <div className="max-w-4xl mx-auto w-full px-4 flex items-center gap-4">
+        <div className="w-full">
+          <CreateMessageServerAction onSendMessage={onSendMessage} />
+        </div>
+
+        <div className="">
+          <TestChannel
+            onDeleteMessage={deleteMessage}
+            onUpdateList={onUpdateListMessage}
+            userId={userId}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -48,35 +48,27 @@ export default function Page() {
       )}
 
       <form
-        className=" mx-auto space-y-2 max-w-md w-full p-2 shadow-md shadow-gray-200 rounded-2xl"
+        className="mx-auto space-y-4 max-w-md w-full p-6 card"
         onSubmit={onSubmit}
       >
-        <h2 className="text-center text-2xl">Login</h2>
+        <h2 className="text-center text-2xl text-slate-100">Login</h2>
 
         <label className="flex flex-col" htmlFor="email">
           Email:
-          <input
-            className="p-2 border border-gray-100 rounded-xl bg-gray-50"
-            type="email"
-            name="email"
-            id="email"
-          />
+          <input className="input" type="email" name="email" id="email" />
         </label>
 
         <label className="flex flex-col" htmlFor="password">
           Password:
           <input
-            className="p-2 border border-gray-100 rounded-xl bg-gray-50"
+            className="input"
             type="password"
             name="password"
             id="password"
           />
         </label>
 
-        <button
-          className="rounded-md p-3 bg-gray-100 border border-gray-300"
-          type="submit"
-        >
+        <button className="btn" type="submit">
           Entrar
         </button>
 
@@ -85,11 +77,9 @@ export default function Page() {
         )}
       </form>
 
-      <div className=" py-6 mx-auto text-center">
-        <p className="font-thin text-sm text-black/85">sin cuenta?</p>
-        <button className="rounded-md p-3 bg-gray-100 border border-gray-300">
-          Crear cuenta
-        </button>
+      <div className="py-6 mx-auto text-center">
+        <p className="font-thin text-sm text-slate-400">sin cuenta?</p>
+        <button className="btn">Crear cuenta</button>
       </div>
     </section>
   );

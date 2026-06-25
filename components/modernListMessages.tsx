@@ -27,9 +27,9 @@ export default function ChatWindow({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-[600px] w-full max-w-4xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="chat-card">
       {/* Cabecera del Chat */}
-      <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+      <div className="chat-header">
         <div>
           <h2 className="text-lg font-bold text-slate-100">Sala de Chat</h2>
           <p className="text-xs text-emerald-400 flex items-center gap-1.5">
@@ -43,10 +43,7 @@ export default function ChatWindow({
       </div>
 
       {/* Cuerpo del Chat / Lista de Mensajes */}
-      <div
-        id=""
-        className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-900/50"
-      >
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-900/50 chat-body">
         {messages.map((msg) => {
           const isMe = msg.user_id === id;
           const userProfile = profilesList.find((p) => p.id == msg.user_id);
@@ -85,11 +82,9 @@ export default function ChatWindow({
                 >
                   {/* Burbuja del mensaje */}
                   <div
-                    className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-md ${
-                      isMe
-                        ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-tr-none"
-                        : "bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700/50"
-                    }`}
+                    className={
+                      isMe ? "message-bubble-me" : "message-bubble-other"
+                    }
                   >
                     {msg.content}
                   </div>

@@ -8,15 +8,12 @@ export default async function Page() {
 
   return (
     <div className="p-2 space-y-2">
-      <nav className="bg-gray-50 p-2 flex items-center w-full gap-3 rounded-md border border-gray-200">
+      <nav className="card flex items-center max-w-7xl mx-auto w-full gap-3 p-3">
         <div className="flex-1 h-auto">
-          <h2>APPCITA</h2>
+          <h2 className="text-lg font-bold text-slate-100">APPCITA</h2>
         </div>
         <LogOutButton />
-        <Link
-          href={"/"}
-          className="shadow-md my-2 p-2 rounded-md border border-gray-200 bg-gray-50"
-        >
+        <Link href={"/"} className="btn">
           Home
         </Link>
       </nav>

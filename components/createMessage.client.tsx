@@ -24,7 +24,7 @@ export function CreateMessageClient() {
   };
 
   const onCreateMessage = async () => {
-    const data = await createMessage(inputs.message, inputs.author);
+    const data = await createMessage(inputs.message);
     router.refresh();
     console.log(data);
   };
@@ -33,7 +33,7 @@ export function CreateMessageClient() {
     <section className="space-y-1">
       <p>Mensaje:</p>
       <textarea
-        className="border p-1 rounded-md"
+        className="input h-28 resize-none"
         name="message"
         id="message"
         value={inputs.message}
@@ -43,14 +43,14 @@ export function CreateMessageClient() {
       <p>Author:</p>
       <input
         value={inputs.author}
-        className="border p-1 rounded-md"
+        className="input"
         type="text"
         name="author"
         id="author"
         onChange={(e) => onChangeInput("author", e.target.value)}
       />
 
-      <button onClick={onCreateMessage} className="block border p-2">
+      <button onClick={onCreateMessage} className="btn">
         Enviar
       </button>
     </section>
