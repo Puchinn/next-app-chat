@@ -4,7 +4,30 @@ import { createClient } from "@/lib/supabase/server";
 
 const getAllMesagges = async () => {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("messages").select("*");
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(20);
+
+  if (error) {
+    console.log(error);
+  }
+
+  return data;
+};
+
+const getMessagesRange = async (from: number, to: number) => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    })
+    .range(from, to);
 
   if (error) {
     console.log(error);
@@ -49,4 +72,4 @@ const createMessage = async (message: string) => {
   return data;
 };
 
-export { getAllMesagges, createMessage, deleteMessage };
+export { getAllMesagges, createMessage, deleteMessage, getMessagesRange };

@@ -5,7 +5,7 @@ import TestChannel from "./testChannel";
 import { CreateMessageServerAction } from "./createMessage.server";
 import { useOptimistic, startTransition } from "react";
 import { onCreateMessage } from "./help";
-import { getAllMesagges } from "@/services/messages";
+import { getAllMesagges, getMessagesRange } from "@/services/messages";
 import ChatList from "./modernListMessages";
 import type { Profile } from "@/services/profile";
 import { getAllProfiles } from "@/services/profile";
@@ -22,6 +22,10 @@ interface ListMessagesProps {
 }
 
 export function MessagesModule({ userId }: ListMessagesProps) {
+  const [rangeMessages, setRangeMessages] = useState({
+    from: 0,
+    to: 19,
+  });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [listMessages, setListMessages] = useState<Message[]>([]);
   const [optimisticList, setOptimisticList] =
@@ -33,6 +37,14 @@ export function MessagesModule({ userId }: ListMessagesProps) {
 
   const deleteMessage = (id: string) => {
     setListMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const nextRange = () => {
+    const newRange = {
+      from: 0,
+      to: (rangeMessages.to + 1) * 2,
+    };
+    setRangeMessages(newRange);
   };
 
   const onSendMessage = (message: string) => {
@@ -54,9 +66,12 @@ export function MessagesModule({ userId }: ListMessagesProps) {
 
   useEffect(() => {
     const syncMessages = async () => {
-      const messages = (await getAllMesagges()) as Message[];
+      const messages = (await getMessagesRange(
+        rangeMessages.from,
+        rangeMessages.to,
+      )) as Message[];
 
-      setListMessages(messages);
+      setListMessages(messages.reverse());
     };
     syncMessages();
 
@@ -65,10 +80,13 @@ export function MessagesModule({ userId }: ListMessagesProps) {
       setProfiles(profilesList);
     };
     getProfiles();
-  }, []);
+  }, [rangeMessages]);
 
   return (
     <div className="space-y-4">
+      <button onClick={nextRange} className="p-2 rounded-full btn">
+        Cargar mas mensajes
+      </button>
       <ChatList profilesList={profiles} messages={optimisticList} />
 
       <div className="max-w-4xl mx-auto w-full px-4 flex items-center gap-4">
