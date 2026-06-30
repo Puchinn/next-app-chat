@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💬 ChatApp (Work In Progress 🚀)
 
-## Getting Started
+An intuitive, real-time chat application built using **Next.js** and **Supabase**. The project is currently undergoing a major refactoring phase and runs exclusively in a local development environment.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚧 Current Status: Work In Progress (WIP)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> **Note:** This project is being actively refactored to improve architecture, performance, and code quality. Deployment instructions will be updated once a stable production build is ready.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ✨ Features
 
-## Learn More
+Despite being in development, the core chat engine and the following user management features are fully functional:
 
-To learn more about Next.js, take a look at the following resources:
+- **🔐 Secure Authentication:** Login and sign-up powered by Supabase Auth.
+- **👤 User Profiles:** Personalized profiles where users can change their display names.
+- **🖼️ Avatar Customization:** Upload and update profile pictures directly stored in Supabase Storage.
+- **⚡ Real-time Messaging:** Instant chat delivery using Supabase Realtime database listeners.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Tech Stack & Tools
 
-## Deploy on Vercel
+### Frontend
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-20232a?style=flat-square&logo=react&logoColor=%2361DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=flat-square&logo=tailwindcss&logoColor=white)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Backend & Database
+
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat-square&logo=postgresql&logoColor=white)
+
+---
