@@ -1,0 +1,1 @@
+GRANT INSERT ON public.users TO postgres, service_role, supabase_auth_admin;
