@@ -46,12 +46,14 @@ pnpm lint             # eslint
 pnpm exec tsc --noEmit   # chequeo de tipos
 
 # Supabase CLI (siempre desde la raíz del proyecto)
-supabase start        # levantar stack local
-supabase stop         # detener stack local
-supabase db reset     # re-aplicar todas las migraciones en local
-supabase migration new <nombre>   # crear migración vacía (timestamp automático)
-supabase db diff       # diff entre DB local y migraciones
-supabase gen types typescript --local > lib/supabase/database.types.ts   # tipos generados
+# No hay CLI instalado: se usa con `pnpm dlx supabase`. La primera ejecución
+# descarga el paquete y tarda; las siguientes usan la caché de pnpm.
+pnpm dlx supabase start        # levantar stack local
+pnpm dlx supabase stop         # detener stack local
+pnpm dlx supabase db reset     # re-aplicar todas las migraciones en local
+pnpm dlx supabase migration new <nombre>   # crear migración vacía (timestamp automático)
+pnpm dlx supabase db diff       # diff entre DB local y migraciones
+pnpm dlx supabase gen types typescript --local > lib/supabase/database.types.ts   # tipos generados
 
 # Skills de terceros (previa aprobación; nunca npx)
 pnpm dlx skills add <owner/repo>

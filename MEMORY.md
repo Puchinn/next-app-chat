@@ -54,6 +54,7 @@
 | 2026-10-09 | **`implementer` sin skills**: solo escupe código, las reglas puntuales se pasan en el encargo. Su catch-all `deny` ya le oculta las skills del modelo. **`reviewer` informado**: sí skills de Postgres.                                                                                             |
 | 2026-10-09 | **`chrome-devtools` reservado a un agente de tests futuro.** Está en `mcp.servers` pero ningún agente propio lo tiene permitido (el catch-all `deny` lo bloquea). Se habilita cuando exista ese agente.                                                                                               |
 | 2026-10-09 | **Nada de `npx` en el repo.** El MCP y la copia propia de `find-skills` usan `pnpm dlx`. Para skills de terceros que haya que adaptar, se sobreescribe en `.opencode/skills/` (precedencia más alta) en vez de parchear el vendor y romper el hash del lock.                                          |
+| 2026-10-09 | **CLI de Supabase vía `pnpm dlx supabase ...`**, nunca global ni con `npx` (verificado con la 2.120.0). Ojo: la allowlist del shell de cada agente es **literal**, así que hay que llevarla con el mismo prefijo o los comandos quedan denegados.                                                 |
 
 ---
 
@@ -67,7 +68,7 @@ Cada ítem lleva la fase en la que se resuelve.
 - [x] **[F0.5] Agentes built-in (`build`, `plan`) sin restricciones** — **decisión: se deja así a propósito.** El usuario puede cambiar de agente en la TUI; el MCP y las skills abiertas en `build`/`plan` no se consideran riesgo. Se documenta, no se corrige.
 - [ ] **[F0.5] Skills** — instaladas y habilitadas: `supabase` y `supabase-postgres-best-practices` (en `db-supabase`, `reviewer`, `spec-writer`) y `find-skills` (en `orchestrator`). `implementer` queda **sin skills** por diseño. **Pendiente:** `vercel-react-best-practices`; escribir `sdd-spec-template`, `zod-domain-schemas` y `supabase-rls-realtime`.
 - [x] **[F0.5] F0.5 commiteado** — `1379c8e` (config, agentes, skills, MCP, docs) y `c3d5c5b` (migración inicial y `features/`). **Quedó sin commitear el WIP del usuario** en `app/`, `services/`, `components/` y `package.json`: sin relación con F0.5 y con `tsc` roto.
-- [ ] **[F0.5] El CLI de Supabase NO está instalado** — verificado el 2026-10-09: ni global, ni scoop/winget/npm, ni local en `node_modules/.bin`. **`db-supabase` está bloqueado del todo**: todo su shell (`supabase status`, `migration new`, `migration list`, `db diff`, `gen types`) falla con "command not found". Explica por qué `20261008015400_estado_actual.sql` se escribió a mano. Hay que instalarlo (requiere aprobación) y actualizar la sección 3 de `AGENTS.md` si se cambia la vía de instalación.
+- [x] **[F0.5] CLI de Supabase** — no está instalado (verificado: ni global, ni scoop/winget/npm, ni local). **Decisión: no instalar nada global; usar `pnpm dlx supabase ...`**, consistente con la regla dura 4. Verificado el 2026-10-09: `pnpm dlx supabase --version` → `2.120.0`, exit 0, 491 ms. Actualizados `AGENTS.md` (sección 3) y la allowlist del shell de `db-supabase`, que es literal y dejaba de coincidir con el prefijo nuevo.
 - [ ] **[F1] `pnpm exec tsc --noEmit` y `pnpm build` FALLAN (4 errores), ya en el commit HEAD** — medido el 2026-10-09. `lib/supabase/client.ts` exporta solo `createClient()`, pero siguen importando `supabaseClient`: `components/testChannel.tsx:3`, `services/authClient.ts:1` y `app/login/page.tsx:40`. Más `testChannel.tsx:32` con `payload` implícito `any`. El build compila bien y falla solo en el typecheck. **Esto bloquea la definición de hecho de cualquier tarea**, así que conviene resolverlo antes de arrancar F1.
 - [ ] **[F1] Tabla `profiles` inexistente** — `services/profile.ts` la consulta, pero solo existe `users` en las migraciones. Además falta el bucket `profiles_avatars` (usado en `app/profile/helps.ts`).
 - [ ] **[F1] Dos dominios de usuario en conflicto** — `features/users/actions.ts` usa `users`; `services/profile.ts` usa `profiles`. Decisión: unificar en `profiles`.
@@ -98,7 +99,7 @@ Cada ítem lleva la fase en la que se resuelve.
 
 **F0.5 — Configuración multiagente (en curso):**
 
-1. **Instalar el CLI de Supabase** (previa aprobación): sin él, `db-supabase` no puede hacer nada.
+1. Levantar el stack local (`pnpm dlx supabase start`) y aplicar la migración (`pnpm dlx supabase db reset`), para después generar `database.types.ts`.
 2. Probar los cinco agentes con una tarea chica real (ver deuda `[F0.5] Probar los agentes`).
 3. Escribir las skills propias (`sdd-spec-template`, `zod-domain-schemas`, `supabase-rls-realtime`) y evaluar `vercel-react-best-practices`.
 4. Resolver quién edita `app/`, `lib/` y `context/`.
