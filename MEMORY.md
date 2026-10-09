@@ -66,7 +66,8 @@ Cada ítem lleva la fase en la que se resuelve.
 - [ ] **[F0.5] `app/`, `lib/` y `context/` sin agente que los edite** — el orquestador no puede y el `implementer` solo toca `features/`. Decidir: ampliar la arena o sumar un agente con modelo de la nube.
 - [x] **[F0.5] Agentes built-in (`build`, `plan`) sin restricciones** — **decisión: se deja así a propósito.** El usuario puede cambiar de agente en la TUI; el MCP y las skills abiertas en `build`/`plan` no se consideran riesgo. Se documenta, no se corrige.
 - [ ] **[F0.5] Skills** — instaladas y habilitadas: `supabase` y `supabase-postgres-best-practices` (en `db-supabase`, `reviewer`, `spec-writer`) y `find-skills` (en `orchestrator`). `implementer` queda **sin skills** por diseño. **Pendiente:** `vercel-react-best-practices`; escribir `sdd-spec-template`, `zod-domain-schemas` y `supabase-rls-realtime`.
-- [ ] **[F0.5] Nada de F0.5 está commiteado** — `.opencode/`, `.agents/`, `.opencode/skills/`, `opencode.json`, `skills-lock.json`, `supabase/migrations/`, `features/` y `docs/` siguen sin versionar. Un clone nuevo no tiene agentes, skills, MCP ni migraciones. Requiere aprobación explícita.
+- [x] **[F0.5] F0.5 commiteado** — `1379c8e` (config, agentes, skills, MCP, docs) y `c3d5c5b` (migración inicial y `features/`). **Quedó sin commitear el WIP del usuario** en `app/`, `services/`, `components/` y `package.json`: sin relación con F0.5 y con `tsc` roto.
+- [ ] **[F0.5] El CLI de Supabase NO está instalado** — verificado el 2026-10-09: ni global, ni scoop/winget/npm, ni local en `node_modules/.bin`. **`db-supabase` está bloqueado del todo**: todo su shell (`supabase status`, `migration new`, `migration list`, `db diff`, `gen types`) falla con "command not found". Explica por qué `20261008015400_estado_actual.sql` se escribió a mano. Hay que instalarlo (requiere aprobación) y actualizar la sección 3 de `AGENTS.md` si se cambia la vía de instalación.
 - [ ] **[F1] `pnpm exec tsc --noEmit` y `pnpm build` FALLAN (4 errores), ya en el commit HEAD** — medido el 2026-10-09. `lib/supabase/client.ts` exporta solo `createClient()`, pero siguen importando `supabaseClient`: `components/testChannel.tsx:3`, `services/authClient.ts:1` y `app/login/page.tsx:40`. Más `testChannel.tsx:32` con `payload` implícito `any`. El build compila bien y falla solo en el typecheck. **Esto bloquea la definición de hecho de cualquier tarea**, así que conviene resolverlo antes de arrancar F1.
 - [ ] **[F1] Tabla `profiles` inexistente** — `services/profile.ts` la consulta, pero solo existe `users` en las migraciones. Además falta el bucket `profiles_avatars` (usado en `app/profile/helps.ts`).
 - [ ] **[F1] Dos dominios de usuario en conflicto** — `features/users/actions.ts` usa `users`; `services/profile.ts` usa `profiles`. Decisión: unificar en `profiles`.
@@ -84,7 +85,7 @@ Cada ítem lleva la fase en la que se resuelve.
 
 ## Últimos cambios
 
-- **2026-10-09 · F0.5** — **Config multiagente verificada y sincronizada** contra OpenCode v2.0.26 (`opencode debug agents`/`debug config` + doc V2; el schema publicado describe V1 y engaña). Activado el MCP de Supabase con `supabase_* allow` y `supabase_apply_migration` denegado por permiso; `chrome-devtools` movido a `mcp.servers` y cambiado a `pnpm dlx`; `default_agent: orchestrator`. Skills habilitadas por agente (`db-supabase`, `reviewer`, `spec-writer`, `orchestrator`), `implementer` sin skills por diseño; copia propia de `find-skills` en `.opencode/skills/` para usar `pnpm dlx`. Creadas `docs/specs/` y `docs/archive/`. Corregidas 5 desincronizaciones del `MEMORY.md`. **Sin probar en vivo.**
+- **2026-10-09 · F0.5** — **Config multiagente verificada y sincronizada** contra OpenCode v2.0.26 (`opencode debug agents`/`debug config` + doc V2; el schema publicado describe V1 y engaña). Activado el MCP de Supabase con `supabase_* allow` y `supabase_apply_migration` denegado por permiso; `chrome-devtools` movido a `mcp.servers` y cambiado a `pnpm dlx`; `default_agent: orchestrator`. Skills habilitadas por agente (`db-supabase`, `reviewer`, `spec-writer`, `orchestrator`), `implementer` sin skills por diseño; copia propia de `find-skills` en `.opencode/skills/` para usar `pnpm dlx`. Creadas `docs/specs/` y `docs/archive/`. Corregidas 5 desincronizaciones del `MEMORY.md`. Commiteado en `1379c8e` + `c3d5c5b` (el WIP de `app/`, `services/` y `components/` quedó fuera). **Descubierto al verificar: el CLI de Supabase no está instalado, así que `db-supabase` no puede ejecutar nada de su shell.** **Sin probar en vivo.**
 - **2026-10-09 · F0.5** — Creados `spec-writer`, `db-supabase` y `reviewer` en `.opencode/agents/` (heredan el modelo global). `db-supabase` no aplica migraciones (el usuario ejecuta `supabase db reset`) y regenera `database.types.ts`; `reviewer` es de solo lectura y repite la verificación. Ajustados `orchestrator.md` (flujo de migraciones) y `AGENTS.md` (arena de `db-supabase`). El MCP de Supabase sigue apagado. Sin probar en OpenCode.
 - **2026-10-09 · F0.5** — Creados `opencode.json`, `.opencode/agents/orchestrator.md` e `.opencode/agents/implementer.md`, adaptados al esquema de OpenCode 2.x de un proyecto previo probado. `AGENTS.md` suma la sección 13 "Agentes y skills" (roles, arenas de edición, veredictos, modelo local, MCP de Supabase sin `apply_migration`, skills).
 - **2026-10-09 · F0** — Revisión de `AGENTS.md` y `MEMORY.md`: niveles de aprobación para esquema multiagente, excepciones de arquitectura (realtime, `chat → profiles`), regla de tipos Zod vs `database.types.ts`, definición de hecho, seguridad, git, idioma y testing. Deuda enlazada a fases.
@@ -97,10 +98,11 @@ Cada ítem lleva la fase en la que se resuelve.
 
 **F0.5 — Configuración multiagente (en curso):**
 
-1. Probar los cinco agentes con una tarea chica real (ver deuda `[F0.5] Probar los agentes`).
-2. Escribir las skills propias (`sdd-spec-template`, `zod-domain-schemas`, `supabase-rls-realtime`) y evaluar `vercel-react-best-practices`.
-3. Resolver quién edita `app/`, `lib/` y `context/`.
-4. Commit de todo lo untracked (requiere aprobación).
+1. **Instalar el CLI de Supabase** (previa aprobación): sin él, `db-supabase` no puede hacer nada.
+2. Probar los cinco agentes con una tarea chica real (ver deuda `[F0.5] Probar los agentes`).
+3. Escribir las skills propias (`sdd-spec-template`, `zod-domain-schemas`, `supabase-rls-realtime`) y evaluar `vercel-react-best-practices`.
+4. Resolver quién edita `app/`, `lib/` y `context/`.
+5. **Arreglar los 4 errores de `tsc`** (`supabaseClient`): bloquean la definición de hecho de cualquier tarea.
 
 **F1 — Reconexión + cimientos:**
 
