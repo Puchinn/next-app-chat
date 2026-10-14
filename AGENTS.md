@@ -227,7 +227,7 @@ Definidos en `opencode.json`, bajo `mcp.servers`.
 - Se usa para **inspección** (`list_tables`, `get_advisors`, consultas `select`). **No se usa `apply_migration`**: toda migración es un archivo en `supabase/migrations/` creado con `supabase migration new`, para que el repositorio y la base nunca diverjan (regla dura 5).
 - Esa regla está **reforzada por permiso**: `supabase_* allow` seguido de `supabase_apply_migration deny`. Ojo: `execute_sql` también puede correr DDL, así que el veto por texto en el prompt del agente se mantiene.
 
-**`chrome-devtools`** — **retirado de `opencode.json` hasta la fase de tests (F5).** No hay tests ni agente que lo use; se re-añade cuando exista el agente de tests, con reglas `action: "chrome_devtools_*"` y comando `pnpm dlx`, nunca `npx`.
+**`chrome-devtools`** — **activo para `orchestrator` con fines de smoke/verificación visual** (UI, consola y red), decisión del 2026-10-14. Es un acceso **provisional**: cuando exista el agente de tests (F5) se le habilita a él con reglas `action: "chrome_devtools_*"` y el orquestador lo hereda como verificación. Comando con `pnpm dlx`, nunca `npx`.
 
 ### Skills
 

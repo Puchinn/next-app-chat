@@ -16,10 +16,17 @@
 - ✅ **Config multiagente: 6 agentes** (`orchestrator`, `spec-writer`, `db-supabase`, `implementer`, `refactor`, `reviewer`), arenas y modelos sincronizados con `AGENTS.md` §13.
 - ✅ **`services/` y `features/users/` eliminados.** Los 11 consumidores rewireados a `@/features/profiles` y `@/features/chat` (solo vía `index.ts`). `features/users/actions.ts` consultaba la tabla `users`, inexistente desde la migración: las páginas de perfil estaban rotas en runtime y ahora usan `profiles`.
 - ✅ **Chat restaurado** en `app/page.tsx` (`MessagesModule` vuelve a renderizar).
+- ✅ **Smoke test visual en navegador (2026-10-14, `chrome-devtools`):** login end-to-end, trigger `handle_new_user` crea perfil, envío de mensajes persiste en DB, realtime propaga INSERT y DELETE entre pestañas sin recargar, borrado propio funciona, update de perfil end-to-end, logout con redirect. Usuario de prueba: `tester@chatapp.local` (contraseña en la sesión; se puede borrar).
 - ✅ **`pnpm run gen:types`** regenera `database.types.ts` en UTF-8 (el `>` de PowerShell escribía UTF-16 y ESLint lo leía como binario).
 - ✅ **Spec 01 sincronizada** con el código (nombre del hook, CA-9, comando de tipos, deuda de `tsc` saldada).
 - ⏳ **Runtime sin verificar:** el chat end-to-end (realtime) y el bucket `profiles_avatars` se prueban en navegador/Studio (F3).
 - ⚠️ **Deuda F2 conocida:** interfaces `Message` a mano en `messagesModule`/`modernListMessages`/`testChannel`/`listMessages` (usan `author`, columna que ya no existe: migrar a `user_id` + perfil del autor), `throw "..."` en `app/profile/helps.ts:21`, suscripción realtime dentro de `testChannel.tsx` (el hook `useMessagesRealtime` existe y no está enchufado).
+- ⚠️ **Deuda nueva del smoke test visual (2026-10-14):**
+  1. **El botón de borrar no se renderiza para mensajes agregados en vivo** (optimista o por realtime): solo aparece para los cargados al inicio (verificado: pestaña con carga fresca lo tiene, pestaña que envió el mensaje no; tras recargar aparece).
+  2. **Avatares rotos en todo el chat**: `alt="null's avatar"` y `ui-avatars.com/?name=undefined` (incluso un `<img src="">`) — la UI lee `author` en vez del perfil del autor (mismo root que el ítem F2 anterior, pero ahora confirmado visible).
+  3. `console.log("ejecutando funcion...")` suelto en el flujo de perfil.
+  4. Accesibilidad: inputs de login sin `autocomplete`, campo del form de perfil sin label asociado.
+  5. Layout: el botón "Cargar mas mensajes" queda fuera de la card del chat.
 
 ---
 
@@ -39,6 +46,7 @@
 | 2026-10-14 | **`chrome-devtools` retirado de `opencode.json`** hasta F5 (no hay tests ni agente que lo use). Se re-añade con el agente de tests.                                                                                                                                                |
 | 2026-10-14 | **Umbral trivial (AGENTS.md §2.8):** fix ≤3 líneas o de un solo archivo → sin spec ni reviewer. Spec obligatoria solo para features nuevas y cambios de DB.                                                                                                                        |
 | 2026-10-14 | **`webfetch` añadido a `spec-writer` y `reviewer`** (la skill `supabase` les manda fetchear el changelog). `implementer` y `refactor` sin skills, por diseño.                                                                                                                      |
+| 2026-10-14 | **`chrome-devtools` reactivado solo para `orchestrator`** (smoke/verificación visual: UI, consola, red). Acceso provisional hasta el agente de tests de F5. Decisión del usuario junto con descartar `@playwright/mcp` por ahora.                                                  |
 | 2026-10-14 | **`ProfilesError` vive en `features/<dominio>/errors.ts`**, nunca exportada desde un archivo `"use server"` (Turbopack descarta el módulo entero; el fallo estaba oculto por la caché del build).                                                                                   |
 
 ---
@@ -63,6 +71,7 @@ Cada ítem lleva la fase en la que se resuelve.
 
 ## Últimos cambios
 
+- **2026-10-14 · Smoke visual** — **`chrome-devtools` MCP reactivado** (solo `orchestrator`, `pnpm dlx`) y primer test de navegador end-to-end: login, chat, realtime (INSERT/DELETE entre pestañas), borrado propio, update de perfil y logout — todo verde. Usuario de prueba creado (`tester@chatapp.local`). Nueva deuda registrada: botón de borrar no aparece en mensajes en vivo, avatares rotos por `author`, `console.log` suelto y avisos de accesibilidad.
 - **2026-10-14 · Bloque D** — **F1 cerrada.** `refactor` rewireó 11 consumidores de `@/services/*` y `@/features/users/*` a los `index.ts` de `profiles` y `chat` (adaptando firmas: `createMessage({ content })`, `deleteMessage(id)`, `updateProfile(ProfileUpdate)`, `getProfile`, `listProfiles`); `implementer` añadió `isAuthenticated` a `profiles`; el orquestador eliminó `services/` y `features/users/` (aprobado); chat restaurado en `app/page.tsx`. `reviewer` rechazó la primera pasada por build roto (`ProfilesError` en archivo `"use server"`, oculto por caché) → fix en `features/profiles/errors.ts` + `try/catch` de `listProfiles` → **`reviewer: ✅ APROBADO`** con lint/tsc/build en verde.
 - **2026-10-14 · Bloque B** — Config multiagente sincronizada: creado **`refactor`** (remoto, arena `app/lib/context/components/services`); `orchestrator` con arena `AGENTS.md` + `.opencode/agents/**`, permiso `subagent: refactor` y `question`; `spec-writer` con modelo local fijo (el free/global falla 3/3) y `webfetch` en `spec-writer`/`reviewer`; `db-supabase` pasa al script `gen:types`; `chrome-devtools` retirado de `opencode.json`. Verificado con `opencode debug agents` (6 agentes) y `debug config`.
 - **2026-10-14 · Bloque A** — Desbloqueada la definición de hecho: script `gen:types` en `package.json` (UTF-8) + tipos regenerados; `refactor` corrigió los 4 errores de `tsc` (`supabaseClient` → `createClient`, payload realtime tipado); spec 01 actualizada por `spec-writer`.
@@ -82,7 +91,8 @@ Cada ítem lleva la fase en la que se resuelve.
 
 **F3 — Runtime:**
 
-1. `pnpm dev` + 2 sesiones: verificar insert/update/delete en realtime y el flujo de login → chat → perfil.
-2. Bucket `profiles_avatars` en Studio (usuario).
+1. ~~Verificar insert/delete en realtime~~ — **hecho en el smoke visual 2026-10-14** (falta solo UPDATE, que no tiene UI).
+2. Corregir los hallazgos del smoke (ver "Deuda nueva"): botón de borrar en mensajes en vivo y avatares por perfil del autor (van con F2).
+3. Bucket `profiles_avatars` en Studio (usuario).
 
 **Después:** F4 (specs formales para features nuevas), F5 (testing + re-añadir `chrome-devtools`), smoke de `db-supabase`, diagnóstico del fallo de modelo de `spec-writer`, y evaluar skills propias (`sdd-spec-template`, `zod-domain-schemas`, `supabase-rls-realtime`) cuando el flujo ya corra solo.

@@ -72,6 +72,12 @@ permissions:
   - action: "question"
     resource: "*"
     effect: allow
+  # Navegador para smoke tests visuales (UI, consola y red) durante las sesiones.
+  # Acceso provisional del orquestador hasta que exista el agente de tests (F5),
+  # que heredará estas reglas.
+  - action: "chrome_devtools_*"
+    resource: "*"
+    effect: allow
 ---
 
 # Orquestador de ChatApp
