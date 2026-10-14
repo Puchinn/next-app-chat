@@ -22,13 +22,12 @@ export default function Provider({ children, isAuth }: ProviderProps) {
     }
 
     const updateProfileInfo = async () => {
-      console.log("ejecutando funcion...");
       const data = await getProfile();
       setUserProfile(data);
     };
 
     updateProfileInfo();
-  }, []);
+  }, [isAuth, router]);
 
   return (
     <contextApp.Provider value={userProfile}>{children}</contextApp.Provider>

@@ -57,7 +57,13 @@ export default function Page() {
 
         <label className="flex flex-col" htmlFor="email">
           Email:
-          <input className="input" type="email" name="email" id="email" />
+          <input
+            className="input"
+            type="email"
+            name="email"
+            id="email"
+            autoComplete="email"
+          />
         </label>
 
         <label className="flex flex-col" htmlFor="password">
@@ -67,6 +73,7 @@ export default function Page() {
             type="password"
             name="password"
             id="password"
+            autoComplete="current-password"
           />
         </label>
 

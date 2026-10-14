@@ -11,6 +11,8 @@ export type {
   MessageWithAuthor,
   RealtimeEventPayload,
 } from "./types";
+// Suscripción realtime: se expone junto a las acciones del dominio.
+export { useMessagesRealtime } from "./hooks/useMessagesRealtime";
 export {
   messageSchema,
   messageInsertSchema,

@@ -1,25 +1,25 @@
+"use client";
+
 import { useUserProfile } from "@/context/app-context/useUserProfile";
 import { DeleteButton } from "@/components/deleteButton";
 import type { Profile } from "@/features/profiles";
+import type { Message } from "@/features/chat";
 import { useEffect } from "react";
-
-interface Message {
-  id: string;
-  content: string;
-  author?: string;
-  user_id: string;
-}
 
 interface ListMessagesProps {
   messages: Message[];
   profilesList: Profile[];
+  currentUserId: string | undefined;
+  onLoadMore: () => void;
 }
 
 export default function ChatWindow({
   messages,
   profilesList,
+  currentUserId,
+  onLoadMore,
 }: ListMessagesProps) {
-  const { avatar_url, id } = useUserProfile();
+  const selfProfile = useUserProfile();
 
   useEffect(() => {
     const refer = window.document.querySelector("#scrollto");
@@ -44,9 +44,31 @@ export default function ChatWindow({
 
       {/* Cuerpo del Chat / Lista de Mensajes */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-900/50 chat-body">
+        {/* Paginación dentro de la card: carga mensajes más antiguos */}
+        <div className="flex justify-center">
+          <button type="button" onClick={onLoadMore} className="btn text-sm">
+            Cargar mas mensajes
+          </button>
+        </div>
+
         {messages.map((msg) => {
-          const isMe = msg.user_id === id;
-          const userProfile = profilesList.find((p) => p.id == msg.user_id);
+          // `currentUserId` llega del server component: no depende del
+          // contexto, así el botón de borrar aparece también en mensajes
+          // en vivo u optimistas.
+          const isMe = !!currentUserId && msg.user_id === currentUserId;
+          const authorProfile = profilesList.find((p) => p.id === msg.user_id);
+          // Nombre real del autor, sin "null" ni "undefined": perfil del
+          // autor, luego el propio perfil del contexto y por último "Anon".
+          const authorName =
+            authorProfile?.full_name ||
+            authorProfile?.username ||
+            (isMe ? selfProfile.full_name || selfProfile.username : undefined) ||
+            "Anon";
+          // Nunca `src=""`: sin avatar usable se genera uno con el nombre.
+          const avatarUrl =
+            authorProfile?.avatar_url ||
+            (isMe ? selfProfile.avatar_url : undefined) ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}`;
 
           return (
             <div
@@ -57,13 +79,8 @@ export default function ChatWindow({
             >
               {/* Avatar Redondo */}
               <img
-                src={
-                  isMe
-                    ? avatar_url ?? undefined
-                    : userProfile?.avatar_url ||
-                      `https://ui-avatars.com/api/?name=${msg.author}`
-                }
-                alt={`${userProfile?.full_name}'s avatar`}
+                src={avatarUrl}
+                alt={`${authorName}'s avatar`}
                 className="w-10 h-10 rounded-full object-cover border-2 border-slate-800 shrink-0"
               />
 
@@ -73,7 +90,7 @@ export default function ChatWindow({
               >
                 {/* Nombre del autor */}
                 <span className="text-xs font-medium text-slate-400 mb-1 px-1">
-                  {isMe ? "Tú" : userProfile?.username}
+                  {isMe ? "Tú" : authorName}
                 </span>
 
                 {/* Fila de la burbuja + botón de borrar */}
@@ -86,13 +103,13 @@ export default function ChatWindow({
                       isMe ? "message-bubble-me" : "message-bubble-other"
                     }
                   >
-                    {msg.content}
+                    {msg.content ?? ""}
                   </div>
 
                   {/* Botón Borrar: Oculto por defecto, aparece al hacer hover sobre el mensaje */}
                   {isMe && (
                     <div className="flex items-center justify-center">
-                      <DeleteButton id={msg.id} />{" "}
+                      <DeleteButton id={msg.id} />
                     </div>
                   )}
                 </div>

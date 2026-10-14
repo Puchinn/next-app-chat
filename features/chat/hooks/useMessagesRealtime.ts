@@ -85,11 +85,19 @@ function normalizePayload(
   }
 
   if (raw.eventType === "DELETE") {
-    if (!isValidMessage(raw.old)) return null;
+    if (!hasId(raw.old)) return null;
     return { eventType: "DELETE", new: null, old: raw.old as unknown as Message };
   }
 
   return null;
+}
+
+// Para DELETE solo necesitamos `old.id`: el contrato (spec 01 REQ-5) prevé
+// `REPLICA IDENTITY FULL` con `old` completo, pero en runtime el payload de
+// DELETE puede llegar truncado y el único campo consumido aguas abajo
+// (components/messagesModule.tsx → applyRealtimeEvent) es `old.id`.
+function hasId(row: Record<string, string | null> | null): boolean {
+  return !!row && typeof row.id === "string" && row.id.length > 0;
 }
 
 // Solo valida que las columnas requeridas por `messageSchema` existan con
