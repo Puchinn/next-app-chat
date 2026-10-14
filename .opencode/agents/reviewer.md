@@ -52,6 +52,10 @@ permissions:
   - action: "skill"
     resource: "supabase-postgres-best-practices"
     effect: allow
+  # Misma razón que en spec-writer: la skill supabase pide fetchear el changelog.
+  - action: "webfetch"
+    resource: "*"
+    effect: allow
 ---
 
 # Revisor

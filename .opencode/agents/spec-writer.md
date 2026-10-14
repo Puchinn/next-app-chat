@@ -1,6 +1,10 @@
 ---
 description: Redactor de specs SDD de ChatApp. Escribe docs/specs/NN-nombre.md con contexto, requisitos, modelo de datos (Zod + SQL) y criterios de aceptación. No escribe código ni migraciones.
 mode: subagent
+# Heredar el modelo global falla siempre con "OpenCode's free tier can only be
+# used from within OpenCode" (probado 3 veces el 2026-10-14, con y sin modelo
+# free explícito). El modelo local sí funciona. Causa raíz sin diagnosticar.
+model: ollama/qwen3.8:latest#sin-pensar
 permissions:
   - action: "*"
     resource: "*"
@@ -36,6 +40,11 @@ permissions:
     effect: allow
   - action: "skill"
     resource: "supabase-postgres-best-practices"
+    effect: allow
+  # La skill supabase manda a fetchear el changelog: sin webfetch la instrucción
+  # es incumplible. Va al final (última regla que coincide gana).
+  - action: "webfetch"
+    resource: "*"
     effect: allow
 ---
 

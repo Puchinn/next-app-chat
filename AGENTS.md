@@ -26,6 +26,7 @@ Estas reglas tienen prioridad sobre cualquier otra instrucción:
 5. **Esperar la aprobación del usuario** antes de cualquier acción que modifique el repositorio (commits, migraciones, eliminaciones, cambios de dependencias).
 6. **Mantener `MEMORY.md` actualizado.** Al cerrar una sesión con cambios relevantes: actualizar estado, decisiones, deuda y siguientes pasos.
 7. **Leer `MEMORY.md` al iniciar** cualquier tarea sobre este proyecto para arrancar con contexto real.
+8. **Umbral trivial:** un fix de ≤3 líneas o de un solo archivo no requiere spec ni reviewer: plan de una línea + aprobación. La spec es obligatoria solo para features nuevas y cambios de DB.
 
 ### Niveles de aprobación (esquema multiagente)
 
@@ -53,7 +54,9 @@ pnpm dlx supabase stop         # detener stack local
 pnpm dlx supabase db reset     # re-aplicar todas las migraciones en local
 pnpm dlx supabase migration new <nombre>   # crear migración vacía (timestamp automático)
 pnpm dlx supabase db diff       # diff entre DB local y migraciones
-pnpm dlx supabase gen types typescript --local > lib/supabase/database.types.ts   # tipos generados
+pnpm run gen:types              # regenera lib/supabase/database.types.ts (UTF-8)
+# Ojo: el `>` de PowerShell escribe UTF-16 y rompe ESLint. El script corre en cmd
+# (donde `>` pasa los bytes UTF-8 tal cual); no usar el `>` directo en la TUI.
 
 # Skills de terceros (previa aprobación; nunca npx)
 pnpm dlx skills add <owner/repo>
@@ -108,7 +111,7 @@ pnpm dlx skills add <owner/repo>
 5. Memoria       → actualizar MEMORY.md (estado, decisiones, deuda, siguientes pasos)
 ```
 
-**Nunca saltarse la spec.** Si la feature es trivial (cambio cosmético, fix de una línea), preguntar si corresponde spec o no.
+**Nunca saltarse la spec** salvo el umbral trivial de la sección 2.8 (fix de ≤3 líneas o de un solo archivo): para eso basta un plan de una línea.
 
 ---
 
@@ -178,13 +181,14 @@ Las definiciones viven en `.opencode/agents/` y la configuración de proveedores
 
 | Agente         | Tipo     | Modelo                                         | Puede editar                                                                                    | Función                                                                                                                                                |
 | -------------- | -------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `orchestrator` | primary  | global (nube)                                  | `MEMORY.md`, `docs/archive/**`                                                                  | Único interlocutor del usuario. Lleva el flujo SDD, presenta specs y planes, delega y verifica.                                                        |
-| `spec-writer`  | subagent | global (nube)                                  | `docs/specs/**`                                                                                 | Redacta las specs.                                                                                                                                     |
-| `db-supabase`  | subagent | global (nube)                                  | `supabase/migrations/**` (y regenera `lib/supabase/database.types.ts` con `supabase gen types`) | Migraciones, RLS, realtime, trigger y Storage. No aplica migraciones: lo hace el usuario con `supabase db reset`. Único con acceso al MCP de Supabase. |
-| `implementer`  | subagent | **local** (`ollama/qwen3.8:latest#sin-pensar`) | `features/**`                                                                                   | Tareas acotadas de código.                                                                                                                             |
+| `orchestrator` | primary  | global (nube)                                  | `MEMORY.md`, `docs/archive/**`, `AGENTS.md`, `.opencode/agents/**`                              | Único interlocutor del usuario. Lleva el flujo SDD, presenta specs y planes, delega y verifica. Mantiene sincronizadas las reglas y las definiciones de agentes. |
+| `spec-writer`  | subagent | **local** (`ollama/qwen3.8:latest#sin-pensar`, explícito) | `docs/specs/**`                                            | Redacta las specs. Heredar el modelo global falla (ver comentario en su frontmatter).                                |
+| `db-supabase`  | subagent | global (nube)                                  | `supabase/migrations/**` (y regenera `lib/supabase/database.types.ts` con `pnpm run gen:types`) | Migraciones, RLS, realtime, trigger y Storage. No aplica migraciones: lo hace el usuario con `supabase db reset`. Único con acceso al MCP de Supabase. |
+| `implementer`  | subagent | **local** (`ollama/qwen3.8:latest#sin-pensar`) | `features/**`                                                                                   | Escritor de código de dominio: tareas acotadas en `features/`.                                                                                          |
+| `refactor`     | subagent | global (nube)                                  | `app/**`, `lib/**`, `context/**`, `components/**`, `services/**`                                | Escribe y migra el código **fuera** de `features/`. No toca `features/` (área del `implementer`) ni `lib/supabase/database.types.ts` (de db-supabase, solo lectura). |
 | `reviewer`     | subagent | global (nube)                                  | nada (solo lectura)                                                                             | Contrasta el diff con las reglas duras y la definición de hecho.                                                                                       |
 
-- Ningún archivo fuera de estas arenas lo edita un subagente. Si un trabajo cae fuera (por ejemplo `app/`, `lib/` o `context/`), el orquestador lo presenta al usuario para decidir quién lo hace.
+- Las arenas se aplican por agente, en el frontmatter. Ningún archivo fuera de su arena lo edita un subagente: si un trabajo cae fuera, el orquestador lo presenta al usuario o lo delega en el agente que corresponda (código fuera de `features/` → `refactor`).
 - **Los permisos se aplican por agente**, en el frontmatter (`permissions`, lista de `action` / `resource` / `effect`). Este documento es el respaldo textual, no el mecanismo de cumplimiento.
 - **La última regla que coincide gana**, y las reglas del agente se apponen **después** de los defaults. Por eso el `deny` catch-all del frontmatter vence al `allow` global, y las reglas nuevas van **al final** de la lista.
 
@@ -193,12 +197,14 @@ Las definiciones viven en `.opencode/agents/` y la configuración de proveedores
 | Agente         | Skills                                                                              | MCP Supabase                         | `webfetch` |
 | -------------- | ----------------------------------------------------------------------------------- | ------------------------------------ | ---------- |
 | `orchestrator` | `find-skills`                                                                       | no                                   | no         |
-| `spec-writer`  | `supabase`, `supabase-postgres-best-practices`                                      | no                                   | no         |
+| `spec-writer`  | `supabase`, `supabase-postgres-best-practices`                                      | no                                   | sí         |
 | `db-supabase`  | `*` (todas)                                                                         | **sí**, salvo `apply_migration`      | sí         |
 | `implementer`  | **ninguna**, por diseño: solo escribe código, las reglas puntuales van en el encargo | no                                   | no         |
-| `reviewer`     | `supabase`, `supabase-postgres-best-practices`                                      | no                                   | no         |
+| `refactor`     | **ninguna**, por diseño: ídem `implementer`                                         | no                                   | no         |
+| `reviewer`     | `supabase`, `supabase-postgres-best-practices`                                      | no                                   | sí         |
 
-- `implementer` **no ve ninguna skill**: el `deny` catch-all se la oculta del modelo. Es intencional, por su contexto de 72k.
+- `implementer` y `refactor` **no ven ninguna skill**: el `deny` catch-all se la oculta del modelo. Es intencional y evita ruido en sus encargos.
+- `webfetch` en `spec-writer` y `reviewer`: la skill `supabase` manda a fetchear el changelog antes de implementar; sin `webfetch` la instrucción sería incumplible.
 - Las skills se habilitan con reglas `action: "skill"` **al final** del frontmatter. Para habilitar todas, `resource: "*"`.
 - Los agentes built-in (`build`, `plan`) **quedan sin restricciones a propósito**: ven MCP y skills abiertos. Se acepta; el usuario cambia de agente en la TUI si hace falta.
 
@@ -209,7 +215,7 @@ Las definiciones viven en `.opencode/agents/` y la configuración de proveedores
 
 ### Modelo local
 
-- **Solo el `implementer` usa el modelo local.** Es una excepción acotada: contexto corto, `steps: 20` y variante `#sin-pensar` por defecto.
+- **`implementer` y `spec-writer` usan el modelo local** (`ollama/qwen3.8:latest#sin-pensar`). Para el `implementer` es una decisión de diseño (contexto corto, `steps: 20`); para el `spec-writer` es un workaround: heredar el modelo global falla siempre (ver comentario en su frontmatter).
 - Cambiar el modelo, la variante o los `steps` de un agente se registra en `MEMORY.md` con la razón.
 
 ### MCP
@@ -221,7 +227,7 @@ Definidos en `opencode.json`, bajo `mcp.servers`.
 - Se usa para **inspección** (`list_tables`, `get_advisors`, consultas `select`). **No se usa `apply_migration`**: toda migración es un archivo en `supabase/migrations/` creado con `supabase migration new`, para que el repositorio y la base nunca diverjan (regla dura 5).
 - Esa regla está **reforzada por permiso**: `supabase_* allow` seguido de `supabase_apply_migration deny`. Ojo: `execute_sql` también puede correr DDL, así que el veto por texto en el prompt del agente se mantiene.
 
-**`chrome-devtools`** — **reservado a un agente de tests todavía inexistente.** Hoy ningún agente propio lo tiene permitido (lo bloquea el `deny` catch-all). Se habilita con reglas `action: "chrome_devtools_*"` cuando ese agente exista. Usa `pnpm dlx`, no `npx`.
+**`chrome-devtools`** — **retirado de `opencode.json` hasta la fase de tests (F5).** No hay tests ni agente que lo use; se re-añade cuando exista el agente de tests, con reglas `action: "chrome_devtools_*"` y comando `pnpm dlx`, nunca `npx`.
 
 ### Skills
 

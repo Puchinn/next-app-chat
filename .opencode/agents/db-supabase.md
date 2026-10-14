@@ -41,8 +41,10 @@ permissions:
   - action: "shell"
     resource: "pnpm dlx supabase db diff*"
     effect: allow
+  # Regeneración de tipos: vía script de package.json. El `>` directo en
+  # PowerShell escribe UTF-16 y rompe ESLint, por eso no se lista el comando crudo.
   - action: "shell"
-    resource: "pnpm dlx supabase gen types typescript --local*"
+    resource: "pnpm run gen:types*"
     effect: allow
   - action: "shell"
     resource: "git status*"
@@ -100,7 +102,7 @@ Sos el agente de **base de datos** de ChatApp. Diseñás y escribís migraciones
 1. **Entendé el estado real.** Leé `supabase/migrations/` y `lib/supabase/database.types.ts` (si existe) antes de escribir. Usá `pnpm dlx supabase status`, `pnpm dlx supabase migration list` y `pnpm dlx supabase db diff` para ver el estado de la base local. Si el stack no está levantado, no intentes arrancarlo: pedilo.
 2. **Creá la migración** con `pnpm dlx supabase migration new <nombre>` y escribí el SQL en el archivo generado.
 3. **Revisá tu propio trabajo** contra las reglas de arriba: RLS y policies por tabla, realtime, `search_path`, nombres.
-4. **Regenerá los tipos solo cuando el orquestador te confirme que la migración ya está aplicada en local.** El comando es exactamente `pnpm dlx supabase gen types typescript --local > lib/supabase/database.types.ts`, y nunca editás ese archivo a mano.
+4. **Regenerá los tipos solo cuando el orquestador te confirme que la migración ya está aplicada en local.** El comando es exactamente `pnpm run gen:types` (script de `package.json` que redirige la salida en UTF-8). **Nunca** corras el `>` a mano: en PowerShell escribe UTF-16 y ESLint deja de leer el archivo. Y nunca editás ese archivo a mano.
 
 ## Qué devolvés al orquestador
 
