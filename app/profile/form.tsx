@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, SubmitEvent } from "react";
-import { updateUserInfo } from "@/features/users/actions";
-import { User } from "@/features/users/types";
+import { updateProfile } from "@/features/profiles";
+import type { Profile, ProfileUpdate } from "@/features/profiles";
 
-export function Form({ email, user_name }: User) {
+export function Form({ email, username }: Profile) {
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    user_name: user_name || "Anonimo20200",
+  const [inputs, setInputs] = useState<ProfileUpdate>({
+    username: username || "Anonimo20200",
   });
 
   const onInputsChange = (field: keyof typeof inputs, value: string) => {
@@ -22,7 +22,7 @@ export function Form({ email, user_name }: User) {
     setLoading(true);
 
     try {
-      const updated = await updateUserInfo(inputs);
+      await updateProfile(inputs);
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -55,8 +55,8 @@ export function Form({ email, user_name }: User) {
             required
             className="w-full pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
             placeholder="usuario"
-            value={inputs.user_name}
-            onChange={(e) => onInputsChange("user_name", e.target.value)}
+            value={inputs.username ?? ""}
+            onChange={(e) => onInputsChange("username", e.target.value)}
           />
         </div>
       </div>

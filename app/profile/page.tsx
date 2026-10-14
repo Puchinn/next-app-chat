@@ -1,10 +1,10 @@
 import { LogOutButton } from "@/components/logOut";
 import Link from "next/link";
 import { Form } from "./form";
-import { getUserInfo } from "@/features/users/actions";
+import { getProfile } from "@/features/profiles";
 
 export default async function Page() {
-  const user = await getUserInfo();
+  const user = await getProfile();
 
   return (
     <div className="p-2 space-y-2">

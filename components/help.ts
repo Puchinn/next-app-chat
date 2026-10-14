@@ -1,15 +1,15 @@
 "use server";
 
-import { deleteMessage, createMessage } from "@/services/messages";
+import { deleteMessage, createMessage } from "@/features/chat";
 import { refresh } from "next/cache";
 
 const onDeleteMessage = async ({ id }: { id: string }) => {
-  const { error, success } = await deleteMessage(id);
+  await deleteMessage(id);
   refresh();
 };
 
 const onCreateMessage = async (message: string) => {
-  const data = await createMessage(message);
+  const data = await createMessage({ content: message });
   return data;
 };
 

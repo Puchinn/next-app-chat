@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
 export default async function Page() {
-  // const supabase = await createClient();
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <section className="p-2 space-y-2">
@@ -21,7 +21,7 @@ export default async function Page() {
         </Link>
       </nav>
 
-      {/* <MessagesModule userId={user?.id} /> */}
+      <MessagesModule userId={user?.id} />
     </section>
   );
 }

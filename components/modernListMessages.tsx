@@ -1,6 +1,6 @@
 import { useUserProfile } from "@/context/app-context/useUserProfile";
 import { DeleteButton } from "@/components/deleteButton";
-import type { Profile } from "@/services/profile";
+import type { Profile } from "@/features/profiles";
 import { useEffect } from "react";
 
 interface Message {
@@ -59,7 +59,7 @@ export default function ChatWindow({
               <img
                 src={
                   isMe
-                    ? avatar_url
+                    ? avatar_url ?? undefined
                     : userProfile?.avatar_url ||
                       `https://ui-avatars.com/api/?name=${msg.author}`
                 }

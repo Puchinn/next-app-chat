@@ -5,10 +5,10 @@ import TestChannel from "./testChannel";
 import { CreateMessageServerAction } from "./createMessage.server";
 import { useOptimistic, startTransition } from "react";
 import { onCreateMessage } from "./help";
-import { getAllMesagges, getMessagesRange } from "@/services/messages";
+import { getMessagesRange } from "@/features/chat";
 import ChatList from "./modernListMessages";
-import type { Profile } from "@/services/profile";
-import { getAllProfiles } from "@/services/profile";
+import type { Profile } from "@/features/profiles";
+import { listProfiles } from "@/features/profiles";
 
 interface Message {
   id: string;
@@ -57,10 +57,14 @@ export function MessagesModule({ userId }: ListMessagesProps) {
       };
 
       setOptimisticList((prev) => [...prev, newValue]);
-      const instertedMessage = (await onCreateMessage(message)) as Message;
-      startTransition(() => {
-        setListMessages((prev) => [...prev, instertedMessage]);
-      });
+      try {
+        const instertedMessage = (await onCreateMessage(message)) as Message;
+        startTransition(() => {
+          setListMessages((prev) => [...prev, instertedMessage]);
+        });
+      } catch (error) {
+        console.error(error);
+      }
     });
   };
 
@@ -76,8 +80,13 @@ export function MessagesModule({ userId }: ListMessagesProps) {
     syncMessages();
 
     const getProfiles = async () => {
-      const profilesList = await getAllProfiles();
-      setProfiles(profilesList);
+      try {
+        const profilesList = await listProfiles();
+        setProfiles(profilesList);
+      } catch (error) {
+        console.error(error);
+        setProfiles([]);
+      }
     };
     getProfiles();
   }, [rangeMessages]);

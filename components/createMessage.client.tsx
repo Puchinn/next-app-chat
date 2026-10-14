@@ -1,6 +1,6 @@
 "use client";
 
-import { createMessage } from "@/services/messages";
+import { createMessage } from "@/features/chat";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -24,9 +24,13 @@ export function CreateMessageClient() {
   };
 
   const onCreateMessage = async () => {
-    const data = await createMessage(inputs.message);
-    router.refresh();
-    console.log(data);
+    try {
+      const data = await createMessage({ content: inputs.message });
+      router.refresh();
+      console.log(data);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (

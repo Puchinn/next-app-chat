@@ -3,9 +3,9 @@
 import { PropsWithChildren, useEffect } from "react";
 import { contextApp } from "./context";
 import { useRouter } from "next/navigation";
-import type { Profile } from "@/services/profile";
+import type { Profile } from "@/features/profiles";
 import { useState } from "react";
-import { getProfileInfo } from "@/services/profile";
+import { getProfile } from "@/features/profiles";
 
 interface ProviderProps extends PropsWithChildren {
   isAuth: boolean;
@@ -23,7 +23,7 @@ export default function Provider({ children, isAuth }: ProviderProps) {
 
     const updateProfileInfo = async () => {
       console.log("ejecutando funcion...");
-      const data = await getProfileInfo();
+      const data = await getProfile();
       setUserProfile(data);
     };
 

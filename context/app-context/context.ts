@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { Profile } from "@/services/profile";
+import type { Profile } from "@/features/profiles";
 
 const contextApp = createContext<Profile | null>(null);
 

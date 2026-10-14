@@ -1,6 +1,6 @@
 "use client";
 
-import { logOut } from "@/features/users/actions";
+import { logOut } from "@/features/profiles";
 
 export function LogOutButton() {
   return (

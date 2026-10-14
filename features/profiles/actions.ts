@@ -4,13 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { profileUpdateSchema } from "./schemas";
 import type { ProfileUpdate } from "./types";
-
-export class ProfilesError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ProfilesError";
-  }
-}
+import { ProfilesError } from "./errors";
 
 // Perfil del usuario logueado.
 export async function getProfile() {
@@ -78,4 +72,11 @@ export async function logOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+// Datos de claims de la sesión actual (null si no hay sesión).
+export async function isAuthenticated() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  return data;
 }
