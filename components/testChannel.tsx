@@ -1,7 +1,9 @@
 "use client";
 
-import { supabaseClient } from "@/lib/supabase/client";
 import { useEffect } from "react";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+
+import { createClient } from "@/lib/supabase/client";
 
 interface Message {
   id: string;
@@ -20,7 +22,8 @@ export default function TestChannel({
   onDeleteMessage: (id: string) => void;
 }) {
   useEffect(() => {
-    const channel = supabaseClient
+    const supabase = createClient();
+    const channel = supabase
       .channel("messages")
       .on(
         "postgres_changes",
@@ -29,7 +32,7 @@ export default function TestChannel({
           schema: "public",
           table: "messages",
         },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<Message>) => {
           const { eventType } = payload;
           const messagePayload = payload.new as Message;
           const deletedMessage = payload.old as Message;
@@ -45,7 +48,7 @@ export default function TestChannel({
       .subscribe();
 
     return () => {
-      supabaseClient.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, []);
 

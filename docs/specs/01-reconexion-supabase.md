@@ -37,9 +37,9 @@ Se resuelven los ítems de deuda `[F1]` de `MEMORY.md`: tabla `profiles` inexist
 - **REQ-10.** Los esquemas Zod de `profiles` y `chat` viven en `features/<dominio>/schemas.ts`; los tipos se derivan con `z.infer`. No hay interfaces a mano fuera de `lib/supabase/database.types.ts`.
 - **REQ-11.** El dominio `chat` importa el perfil del autor **solo** a través del `index.ts` de `features/profiles/` (excepción acordada `chat → profiles`).
 - **REQ-12.** Toda la capa de dominios lanza errores tipados (`extends Error`); queda prohibido `throw` de strings en `features/**` y `services/**` eliminados.
-- **REQ-13.** El hook `useMessages` de `features/chat/hooks/` se suscribe a realtime de `messages` (canal `postgres_changes`) y expone los eventos `INSERT`/`UPDATE`/`DELETE`. Queda fuera de componentes de UI (regla dura 8).
+- **REQ-13.** El hook `useMessagesRealtime` de `features/chat/hooks/` se suscribe a realtime de `messages` (canal `postgres_changes`) y expone los eventos `INSERT`/`UPDATE`/`DELETE`. Queda fuera de componentes de UI (regla dura 8).
 - **REQ-14.** La migración se agrega como archivo **nuevo** en `supabase/migrations/` (nunca editando `20261008015400_estado_actual.sql`) y se aplica **solo** con `pnpm dlx supabase db reset` a cargo del usuario.
-- **REQ-15.** Tras la migración aplicada se regenera `lib/supabase/database.types.ts` con `pnpm dlx supabase gen types typescript --local > lib/supabase/database.types.ts`.
+- **REQ-15.** Tras la migración aplicada se regenera `lib/supabase/database.types.ts` con `pnpm run gen:types` (script de `package.json`; escribe UTF-8; el redirecionamiento `>` directo en PowerShell produce UTF-16 y rompe ESLint).
 - **REQ-16.** Queda prohibido `throw "texto"` a partir de este spec.
 
 ---
@@ -279,9 +279,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 | `features/chat/schemas.ts` | Contratos Zod de chat (ver §3.2). |
 | `features/chat/types.ts` | Tipos derivados de mensajes y payloads realtime (`z.infer` / union de payloads). |
 | `features/chat/actions.ts` | `listMessages`, `getMessagesRange`, `createMessage` (corrección `author` → `user_id`), `deleteMessage`. Server actions; errores tipados. |
-| `features/chat/index.ts` | API pública: `{ listMessages, getMessagesRange, createMessage, deleteMessage, useMessages, type Message, type MessageWithAuthor, type MessageInsert, useMessagesRealtime }`. |
+| `features/chat/index.ts` | API pública: `{ listMessages, getMessagesRange, createMessage, deleteMessage, type Message, type MessageWithAuthor, type MessageInsert, useMessagesRealtime }` (solo el hook `useMessagesRealtime`; un eventual hook de estado combinado se decide en F2/F3, ver §4). |
 | `features/chat/hooks/useMessagesRealtime.ts` | Hook que se suscribe a `postgres_changes` de `messages` (canal `messages_channel` o `postgres_changes:schema=public:table=messages`) y expone `add`, `update`, `remove`. |
-| `features/chat/hooks/useMessages.ts` | *(opcional)* hook de estado que combina la llamada inicial con los eventos realtime. F1 crea mínimo `useMessagesRealtime`; `useMessages` se decide en F2/F3 junto con la UI. |
+| `features/chat/hooks/useMessages.ts` (estado combinado, opcional) | *(opcional)* hook de estado que combina la llamada inicial con los eventos realtime emitidos por `useMessagesRealtime`; se decide en F2/F3 junto con la UI. F1 solo crea `useMessagesRealtime`. |
 | `lib/errors.ts` *(o en cada dominio)* | Clase `DomainError extends Error` para estandarizar errores tipados (REQ-12). Se acuerda con el orquestador antes de crear. |
 
 ### Modificar
@@ -304,9 +304,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 **No se modifica (intencional):**
 
 - `supabase/migrations/20261008015400_estado_actual.sql` — migración ya aplicada; **inmutable** (regla dura 5).
-- `lib/supabase/database.types.ts` — **solo** se regenera con `pnpm dlx supabase gen types typescript --local` **después** de aplicar la migración nueva.
+- `lib/supabase/database.types.ts` — **solo** se regenera con `pnpm run gen:types` **después** de aplicar la migración nueva (el script de `package.json` escribe UTF-8; el redirecionamiento `>` directo en PowerShell produce UTF-16 y rompe ESLint).
 - `.opencode/agents/*.md`, `opencode.json` — fuera de esta feature.
-- `components/testChannel.tsx`, `lib/supabase/client.ts`, `services/authClient.ts`, `app/login/page.tsx` — los errores de `tsc` por `supabaseClient` son **deuda `[F1]`** de `MEMORY.md` pero dependen del estado de `features/`; se resuelven en F2 junto con la reescritura de los componentes, no en F1 por spec. *(Ver P5.)*
+- `components/testChannel.tsx`, `lib/supabase/client.ts`, `services/authClient.ts`, `app/login/page.tsx` — la deuda de `tsc` por `supabaseClient` está **saldada** (2026-10-14): en esos archivos `supabaseClient` pasó a `createClient()` y `payload` quedó tipado. No queda pendiente. *(Ver P5.)*
 
 ### Dependencias entre dominios
 
@@ -328,10 +328,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 | CA-6 | REQ-6 | Al crear un usuario nuevo vía Supabase Auth, `profiles` recibe la fila idempotentemente. | `psql -c "SELECT count(*) FROM auth.users"` antes y después del login de un `email` nuevo; `SELECT from profiles WHERE id = <nuevo id>` → 1 fila. Repetir el login → sigue en 1 fila (idempotentía del `ON CONFLICT`). |
 | CA-7 | REQ-7 | El bucket `profiles_avatars` existe, `public: true`; subida de `A` es visible para `B` por URL pública y no puede ser borrada por `B`. | `pnpm dlx supabase storage buckets list` → aparece `profiles_avatars`; prueba manual upload + `getPublicUrl`. |
 | CA-8 | REQ-8, REQ-10, REQ-12 | `features/profiles/` existe con `schemas.ts`, `types.ts`, `actions.ts`, `index.ts`; no hay `interface ... { ... }` a mano en `features/profiles/**` (salvo `types.ts` que solo hace `export type`); ningún `throw "texto"`; los tipos de retorno vienen de `z.infer`. | `pnpm exec tsc --noEmit` exit 0. `pnpm lint` exit 0. `Select-String -Path "features/profiles/**" -Pattern 'interface\s+\w+'` → sin matches. `Select-String -Path "features/**" -Pattern 'throw\s*"'` → sin matches. |
-| CA-9 | REQ-9, REQ-10, REQ-12 | `features/chat/` existe; `createMessage` inserta `{ content }` y deja `user_id` a `auth.uid()` (no escribe `author`); `deleteMessage` borra por `(id, user_id)`; tipos y payloads realtime de `z.infer`. | `pnpm exec tsc --noEmit` exit 0. `Select-String -Path "features/chat/**" -Pattern '\bauthor\b'` → 0 matches. |
+| CA-9 | REQ-4d, REQ-9, REQ-10, REQ-12 | `features/chat/` existe; `createMessage` inserta `{ content }` y deja `user_id` a `auth.uid()` (no escribe `author`); `deleteMessage` ejecuta `DELETE ... WHERE id = <id>` (el `WHERE` no incluye `user_id`); la restricción de autor —borrar solo el propio mensaje, 0 filas si es de otro— la garantiza la policy `messages_delete_own` de `messages`, no la consulta de `actions.ts`; tipos y payloads realtime de `z.infer`. | `pnpm exec tsc --noEmit` exit 0. `Select-String -Path "features/chat/**" -Pattern '\bauthor\b'` → 0 matches. `SELECT polname, polcmd, pg_get_expr(polqual, oid) FROM pg_policies WHERE tablename = 'messages' AND polname = 'messages_delete_own';` → `user_id = auth.uid()`. Prueba manual con 2 usuarios: `B` borra el `id` de `A` → 0 filas; `A` borra el propio → exit (igual que CA-4). |
 | CA-10 | REQ-11 | `features/chat/schemas.ts` y `actions.ts` importan `MessageAuthor` / `getAuthor` **solo** desde `features/profiles/index.ts`, no de `features/profiles/actions` o `schemas` directamente. | `grep -R "from \"\.\./profiles\"" features/chat/` → solo `index.ts` importado, no submódulos. |
 | CA-11 | REQ-13 | `features/chat/hooks/useMessagesRealtime.ts` existe y se suscribe a `supabase.channel("…").on("postgres_changes", { schema: "public", table: "messages", event: "*" }, …)`; no es un componente de UI. | `grep -R "useRealtime\|supabase.channel" features/chat/hooks/` → match; `grep -R "useMessagesRealtime" features/chat/hooks/*.tsx` → sin match (`hooks` solo `.ts`). |
-| CA-12 | REQ-14, REQ-15 | Solo existe **una** migración nueva (`*_reconexion_*` o similar) en `supabase/migrations/`; `20261008015400_estado_actual.sql` no fue modificado (`git diff` vacío sobre ese archivo). Después de `pnpm dlx supabase db reset` y `pnpm dlx supabase gen types typescript --local`, `lib/supabase/database.types.ts` declara `profiles` y `messages` con `REPLICA IDENTITY FULL` implícito (se ve en el `Row`). | `ls supabase/migrations/` → 2 archivos. `git diff supabase/migrations/20261008015400_estado_actual.sql` → vacío. `grep "profiles" lib/supabase/database.types.ts` → match. |
+| CA-12 | REQ-14, REQ-15 | Solo existe **una** migración nueva (`*_reconexion_*` o similar) en `supabase/migrations/`; `20261008015400_estado_actual.sql` no fue modificado (`git diff` vacío sobre ese archivo). Después de `pnpm dlx supabase db reset` y `pnpm run gen:types`, `lib/supabase/database.types.ts` declara `profiles` y `messages` con `REPLICA IDENTITY FULL` implícito (se ve en el `Row`). | `ls supabase/migrations/` → 2 archivos. `git diff supabase/migrations/20261008015400_estado_actual.sql` → vacío. `grep "profiles" lib/supabase/database.types.ts` → match. |
 | CA-13 | Global (req. 1–16) | El build de producción compila sin errores. | `pnpm build` exit 0. |
 | CA-14 | REQ-1, REQ-3, REQ-5 | End-to-end: con 2 usuarios logueados en 2 pestañas, `A` envía un mensaje, `B` lo ve en vivo sin recargar; `A` lo edita o borra, `B` ve la actualización en vivo sin recargar. | Flujo manual en `pnpm dev` (solo si `app/page.tsx` habilita el chat; si no, F3). En F1 se valida que **el hook** recibe los 3 eventos. |
 
@@ -341,7 +341,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 ### Fuera de alcance (de F1, se cubren en fases siguientes)
 
-- **F2:** migrar `components/messagesModule.tsx`, `components/testChannel.tsx`, `services/authClient.ts` y `app/login/page.tsx` a los dominios nuevos; resolver los 4 errores de `tsc` por `supabaseClient` (deuda `[F1]` en `MEMORY.md`, pero requiere tocar `lib/` y `components/`); eliminar las `interface Message` duplicadas; quitar `console.log`.
+- **F2:** migrar `components/messagesModule.tsx`, `components/testChannel.tsx`, `services/authClient.ts` y `app/login/page.tsx` a los dominios nuevos; *(los 4 errores de `tsc` por `supabaseClient` ya quedaron saldados en 2026-10-14 —ver P5—, así que F2 no debe replantearlos)*; eliminar las `interface Message` duplicadas; quitar `console.log`.
 - **F3:** habilitar el chat en `app/page.tsx` y verificar realtime end-to-end con 2 sesiones del navegador.
 - **F4:** specs formales para features nuevas (admin, hilos, edit, moderación, notificaciones).
 - **F5:** tests. **F6+ (pendiente de naming):** paginación real, rate-limiting, búsqueda por texto.
@@ -352,7 +352,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 - **P2.** ¿**Quién** crea el bucket `profiles_avatars`? Opciones: (a) el usuario lo crea a mano con Supabase Studio, (b) un migration SQL, (c) un script de setup. La spec pre-ve **opción (b)** pero Supabase no expone `INSERT INTO storage.buckets` como migración estándar; se recomienda (a) + políticas aplicadas por `db-supabase` contra el stack local.
 - **P3.** ¿El `deleteMessage` restringido al autor es el comportamiento deseado, o se quiere un rol moderador/admin? La spec asume **solo el autor** (REQ-4 / policy `messages_delete_own`). Si se quiere moderación, es una feature nueva F4.
 - **P4.** ¿`messages_update_own` es un caso de uso de F1, o la policy debe eliminarse? La spec la incluye por paridad de RLS y porque el código actual ya no la usa; si se decide que F1 no edita mensajes, se elimina la policy y no se implementa el `updateMessage` en `actions.ts`. **Decisión pendiente.**
-- **P5.** ¿Se tocan `components/messagesModule.tsx`, `lib/supabase/client.ts` y `app/login/page.tsx` en F1 para resolver los 4 errores de `tsc`, o se dejan para F2? La spec los marca "fuera de alcance" porque dependen de la migración de `components/` a `features/`, pero es una decisión del orquestador con el usuario.
+- **P5.** *(Resuelta, 2026-10-14.)* Los 4 errores de `tsc` por `supabaseClient` ya se resolvieron en `app/login/page.tsx`, `components/testChannel.tsx` y `services/authClient.ts` (`supabaseClient` → `createClient()` y `payload` tipado); no queda deuda pendiente sobre este punto.
 - **P6.** ¿`app/profile/helps.ts` se mueve a `features/profiles/actions.ts` o se queda en `app/`? La spec propone moverla al dominio (regla: sin lógica de negocio en `app/`); el usuario debe confirmar.
 - **P7.** ¿El límite `content` de `messages` es 4000 chars (spec) u otro valor? Decidido a 4000 para F1; se puede ajustar.
 
@@ -362,7 +362,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 | --- | --- |
 | `pnpm add zod` | Nueva dependencia (AGENTS.md §2.3, regla dura 4). |
 | `pnpm dlx supabase db reset` | Aplica la migración nueva (AGENTS.md §13, decisión 2026-10-09: `db-supabase` no aplica migraciones). |
-| `pnpm dlx supabase gen types typescript --local > lib/supabase/database.types.ts` | Regenera el único archivo de tipos del cliente Supabase. |
+| `pnpm run gen:types` | Regenera el único archivo de tipos del cliente Supabase (script de `package.json`, UTF-8). |
 | Crear el bucket `profiles_avatars` (manually o por script) | No hay migración estándar para buckets; decisión P2. |
 
 ---

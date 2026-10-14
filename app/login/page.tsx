@@ -21,7 +21,9 @@ export default function Page() {
     const email = formData.get("email")?.toString() || "";
     const password = formData.get("password")?.toString() || "";
 
-    const { data, error } = await createClient().auth.signInWithPassword({
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -37,7 +39,7 @@ export default function Page() {
     }
 
     setLoading(false);
-    await supabaseClient.auth.setSession(data.session);
+    await supabase.auth.setSession(data.session);
     router.replace("/");
   };
 
