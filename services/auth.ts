@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { supabaseClient } from "@/lib/supabase/client";
 
 export const logOut = async () => {
-  const { error } = await supabaseClient.auth.signOut();
-  console.log(error);
+  const supabase = await createClient();
+  supabase.auth.signOut();
 };
 
 export const isAuthenticated = async () => {

@@ -1,10 +1,10 @@
 import { LogOutButton } from "@/components/logOut";
 import Link from "next/link";
-import { getProfileInfo } from "@/services/profile";
 import { Form } from "./form";
+import { getUserInfo } from "@/features/users/actions";
 
 export default async function Page() {
-  const data = await getProfileInfo();
+  const user = await getUserInfo();
 
   return (
     <div className="p-2 space-y-2">
@@ -24,7 +24,7 @@ export default async function Page() {
             Editar Perfil
           </h2>
 
-          <Form {...data} />
+          <Form {...user} />
         </div>
       </div>
     </div>
