@@ -1,8 +1,8 @@
 # F1 — Reconexión con Supabase: unificar dominio de usuario, RLS y realtime
 
-> **Estado:** borrador para aprobación del usuario.
-> **Fase:** F1 (reconexión + cimientos).
-> **Requiere aprobación del usuario:** instalar `zod`; aplicar la migración con `pnpm dlx supabase db reset`.
+> **Estado:** implementada e ítem a ítem (F1 y F2 cerradas, 2026-10-14, ver §6.1). El único ítem abierto es la deuda de CA-5/REQ-5: la verificación del payload `DELETE` completo (RIF FULL) **no se cumple en el stack local** (evidencia de 2026-10-14 en REQ-5/CA-5); la decisión de tolerar `old.id` en local está tomada, queda pendiente la verificación en cloud y el cierre de P8 (ver §6.1).
+> **Fase:** F1 (reconexión + cimientos) implementada; F2 (migración de la UI legacy) cerrada 2026-10-14; pendiente F3 (runtime entre usuarios).
+> **Requiere aprobación del usuario:** instalar `zod` (hecho); aplicar la migración con `pnpm dlx supabase db reset` (hecho); la verificación del payload `DELETE` completo en entorno cloud sigue pendiente (decisión sobre `old` truncado en local pendiente de P8; evidencias de runtime del 2026-10-14 en REQ-5/CA-5).
 
 ---
 
@@ -29,7 +29,7 @@ Se resuelven los ítems de deuda `[F1]` de `MEMORY.md`: tabla `profiles` inexist
 - **REQ-2.** La tabla `users` queda eliminada; no queda código, migración aplicada ni referencia que la consulte.
 - **REQ-3.** `profiles` tiene RLS habilitado y policies que permiten: (a) SELECT de propio registro y de todos los perfiles (listado público), (b) UPDATE solo del propio registro (con `avatar_url` y `full_name` editables), (c) INSERT del propio registro como *fallback* si no existe.
 - **REQ-4.** `messages` tiene RLS habilitado y policies que permiten: (a) SELECT de todos los mensajes (chat de un solo canal público), (b) INSERT solo como usuario autenticado con `user_id = auth.uid()`, (c) UPDATE del propio mensaje (contenido) con `user_id = auth.uid()`, (d) DELETE **solo del propio mensaje** — se restringe el `deleteMessage` genérico del código actual y se justifica abajo.
-- **REQ-5.** `messages` tiene `REPLICA IDENTITY FULL` para que los payloads de `DELETE`/`UPDATE` lleguen completos en realtime.
+- **REQ-5.** `messages` tiene `REPLICA IDENTITY FULL` aplicada, de modo que **el contrato esperado** de los payloads de `DELETE`/`UPDATE` sea el registro completo (la documentación de Supabase promete que el realtime service emite `old_record`/`new_record` completos). **Verificable en el esquema:** `SELECT relreplident FROM pg_class WHERE oid = 'public.messages'::regclass;` → `f`. **Sonda de runtime contra el stack local (independiente, ejecutada 2026-10-14 tras reiniciar el stack, con `relreplident = 'f'` confirmado por SQL):** INSERT y UPDATE llegan con `new` completo ✅; el `old` de `DELETE` llega **solamente con `{id}`** ❌ (sin `content`, `user_id` ni `created_at`) — comportamiento que **no se cumple en local**, pese a RIF FULL (posible diferencia de versión del servicio realtime local). **Decisión implementada:** ante el payload truncado, y dado que `messagesModule.applyRealtimeEvent` solo consume `old.id` en DELETE, el hook `useMessagesRealtime` valida **solo `old.id`** en `DELETE` (INSERT/UPDATE siguen exigiendo `id` + `created_at`); la app no se ve afectada. **La aceptación plena de REQ-5 (payload `old` completo) queda pendiente de verificar en un entorno cloud** (ver §6.1, CA-5 y P8).
 - **REQ-6.** El trigger `handle_new_user` inserta en `profiles` (no en `users`) al alta de `auth.users`.
 - **REQ-7.** Existe un bucket `profiles_avatars` en Supabase Storage con **lectura pública** y **escritura solo del dueño**, para subir y servir avatares sin exponer la URL de subida a terceros.
 - **REQ-8.** `features/profiles/` reemplaza `services/profile.ts` y `features/users/`: expone `getProfile`, `listProfiles`, `updateProfile`, `logOut` como API pública en `index.ts`, con acceso a datos solo en `actions.ts`.
@@ -48,7 +48,7 @@ Se resuelven los ítems de deuda `[F1]` de `MEMORY.md`: tabla `profiles` inexist
 
 ### 3.1 Zod — `features/profiles/schemas.ts`
 
-> **Requiere aprobación del usuario** para instalar `zod` (`pnpm add zod`). Hasta entonces las specs son declarativas: el implementer no crea estos archivos con `z` sino `unknown` hasta que se apruebe.
+> `zod` aprobado e instalado (`pnpm add zod`). El bloque refleja el archivo implementado (los validadores se simplificaron a `z.string()`; `profileInsertSchema` de la propuesta original no se implementó — el trigger lo escribe, no el cliente).
 
 ```ts
 // features/profiles/schemas.ts
@@ -57,91 +57,77 @@ import { z } from "zod";
 // Perfil completo (row de `profiles`).
 // `id` coincide con `auth.users.id` (1:1), por eso el RLS usa `id = auth.uid()`.
 export const profileSchema = z.object({
-  id: z.string().uuid(),
-  created_at: z.string().datetime(),
-  email: z.string().email().nullish(),
-  username: z.string().min(1).max(32).nullish(),
-  full_name: z.string().max(120).nullish(),
-  avatar_url: z.string().url().nullish(),
-});
-
-export type Profile = z.infer<typeof profileSchema>;
-
-// Input de alta (usado solo por el trigger; el cliente no inserta).
-export const profileInsertSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email().optional(),
+  id: z.string(),
+  created_at: z.string(),
+  email: z.string().nullish(),
+  username: z.string().nullish(),
+  full_name: z.string().nullish(),
+  avatar_url: z.string().nullish(),
 });
 
 // Input de actualización permitida al usuario (solo campos que el RLS permite modificar).
 // `id` queda fuera: el RLS lo fija a `auth.uid()` vía `USING`/`WITH CHECK`.
 // `email` queda fuera: no se edita en esta fase (ver P1).
 export const profileUpdateSchema = z.object({
-  username: z.string().min(1).max(32).optional(),
-  full_name: z.string().max(120).optional().nullable(),
-  avatar_url: z.string().url().optional().nullable(),
+  username: z.string().nullish(),
+  full_name: z.string().nullish(),
+  avatar_url: z.string().nullish(),
 });
-
-export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
 
 // Autor de un mensaje: subconjunto del perfil expuesto al resto del chat.
 // Se sirve únicamente a través de `index.ts` de este dominio (excepción `chat → profiles`).
 export const messageAuthorSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   username: z.string().nullish(),
-  avatar_url: z.string().url().nullish(),
+  avatar_url: z.string().nullish(),
 });
-
-export type MessageAuthor = z.infer<typeof messageAuthorSchema>;
 ```
 
 ### 3.2 Zod — `features/chat/schemas.ts`
 
+> `zod` aprobado e instalado. `messageSchema` de la propuesta original exigía `content: z.string().min(1)`; lo que se implementó es `z.string().nullish()`, porque `DELETE`/optimistas pueden llegar con `content` nulo (ver REQ-5).
+
 ```ts
 // features/chat/schemas.ts
 import { z } from "zod";
-import { messageAuthorSchema, type MessageAuthor } from "../profiles";
+import { messageAuthorSchema } from "@/features/profiles";
 
-// Mensaje puro (row de `messages`). El autor se une en la capa de presentación,
-// nunca se persiste una columna duplicada por aquí.
+// Mensaje completo de la tabla `messages`.
 export const messageSchema = z.object({
-  id: z.string().uuid(),
-  created_at: z.string().datetime(),
-  content: z.string().min(1),
-  user_id: z.string().uuid().nullish(),
+  id: z.string(),
+  created_at: z.string(),
+  content: z.string().nullish(),
+  user_id: z.string().nullish(),
 });
 
-export type Message = z.infer<typeof messageSchema>;
-
-// Mensaje con autor (forma de mostrar): `messageSchema` + `author` (del dominio `profiles`).
-export const messageWithAuthorSchema = z
-  .object({ author: messageAuthorSchema.nullish() })
-  .merge(messageSchema);
-
-export type MessageWithAuthor = z.infer<typeof messageWithAuthorSchema>;
-
-// Input de alta: la columna `user_id` toma valor por defecto via trigger/RLS,
-// pero se la permite explícitamente para dejar el contrato de dominio claro.
+// Lo único que un cliente puede escribir: nunca id, created_at ni user_id.
 export const messageInsertSchema = z.object({
   content: z.string().min(1).max(4000),
 });
 
-export type MessageInsert = z.infer<typeof messageInsertSchema>;
-
-// Payload realtime de `postgres_changes` de `messages`.
-// En eventos `INSERT` llega `types='INSERT'` con `new_record` y `old_record: null`.
-// En `UPDATE`/`DELETE` llegan ambos; por eso pedimos `REPLICA IDENTITY FULL` (REQ-5).
-export type RealtimeEvent<T extends { type: "INSERT" | "UPDATE" | "DELETE" }> = T extends { type: "INSERT" }
-  ? { type: "INSERT"; new_record: Message; old_record: null }
-  : T extends { type: "UPDATE" }
-    ? { type: "UPDATE"; new_record: Message; old_record: Message }
-    : { type: "DELETE"; new_record: null; old_record: Message };
+// Mensaje junto con el perfil del autor (o null si no hay autor visible).
+export const messageWithAuthorSchema = z
+  .object({
+    author: messageAuthorSchema.nullish(),
+  })
+  .merge(messageSchema);
 ```
+
+El payload realtime quedó como **tipo** (no como esquema Zod) en `features/chat/types.ts`, con el nombre `RealtimeEventPayload`:
+
+```ts
+// features/chat/types.ts — evento realtime de la tabla `messages`.
+export type RealtimeEventPayload =
+  | { eventType: "INSERT"; new: Message; old: null }
+  | { eventType: "UPDATE"; new: Message; old: Message }
+  | { eventType: "DELETE"; new: null; old: Message };
+```
+
+El contrato de `old` asume el registro completo (`REPLICA IDENTITY FULL`, REQ-5); en runtime local (evidencia 2026-10-14, ver CA-5) el `old` de `DELETE` llega truncado a `{id}` y el hook lo valida solo por `old.id` (ver REQ-5 / CA-5 / §6.1).
 
 ### 3.3 SQL — migración nueva
 
-> **Intención declarada, no dump.** El archivo real lo crea `db-supabase` con `pnpm dlx supabase migration new <nombre>` tras la aprobación de esta spec.
-> **Requiere aprobación del usuario** para aplicar: `pnpm dlx supabase db reset`.
+> Aplicada: `supabase/migrations/20261009235112_reconexion_profiles_messages.sql` (creada con `pnpm dlx supabase migration new`; aplicada por el usuario con `pnpm dlx supabase db reset`). El bloque de abajo es el contenido declarado de la propuesta; si el archivo final difiere en detalles, el archivo es la fuente de verdad.
 
 ```sql
 -- 1) Nueva tabla `profiles` (unifica `users`; convención estándar de Supabase).
@@ -239,16 +225,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 -- Trigger ya existe sobre auth.users (migración anterior). No se duplica.
 
--- 8) Bucket de avatares.
---    Supabase CLI no crea buckets en migraciones (son runtime), así que esta
---    línea es *intención declarada*: el usuario (o un script aprobado) crea el
---    bucket una sola vez contra el stack local. Ver P2.
--- CREADO FUERA DE LA MIGRACIÓN:
---   bucket: profiles_avatars
---   public: TRUE (lectura pública para servir la URL en el chat)
---   políticas:
---     * upload / delete: TO authenticated, WITH CHECK / USING (storage.foldername(name)[1] = auth.uid()::text)
---     * read: TO authenticated, anon (lectura pública)
+-- 8) Bucket de avatares: el bucket ES RUNTIME y no se crea en la migración
+--    (el usuario lo crea a mano en el stack local, ver P2/§6.1), pero las
+--    POLICIES sí viajan en el archivo `20261009235112`: select público +
+--    insert/delete solo del dueño vía `storage.foldername(name))[1] = auth.uid()::text`.
+--    La migración aplicada incluye también `CREATE INDEX messages_user_id_idx`,
+--    grants sobre `profiles` y el índice no estaban en esta propuesta original.
 ```
 
 **Justificación de las decisiones SQL:**
@@ -261,56 +243,63 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 ---
 
-## 4. Archivos afectados (propuesta)
+## 4. Archivos afectados (propuesta → ejecutado)
 
-> **El orquestador convierte esta tabla en el plan que el usuario aprueba.** Cada fila es una tarea candidata del `implementer` / `db-supabase`.
+> **Estas tablas fueron la propuesta original de F1 y se ejecutaron (2026-10-14).** Las filas que F2 resolvió se marcan como ~~tachadas~~ con la nota "resuelto 2026-10-14"; las eliminaciones ya aplicadas se marcan igual. **Lo que existe hoy** en `features/**` y `components/**`: ver §5 (criterios de aceptación contra el código actual).
 
-### Crear
+### Crear (ejecutado)
 
-| Archivo | Intención |
-| --- | --- |
-| `supabase/migrations/2026MMDD_HHMMSS_reconexion_profiles_messages.sql` | Migración nueva (ver §3.3). Creada con `pnpm dlx supabase migration new`. |
-| `features/profiles/schemas.ts` | Contratos Zod de perfil (ver §3.1). |
-| `features/profiles/types.ts` | Tipos derivados: `export type { Profile as Profile } from "./schemas";` (solo `export type` derivado, sin interfaces). |
-| `features/profiles/actions.ts` | `getProfile`, `listProfiles`, `updateProfile`, `logOut` (server actions, acceso a datos solo aquí). Con errores tipados. |
-| `features/profiles/index.ts` | API pública: `{ getProfile, listProfiles, updateProfile, logOut, type Profile, type ProfileUpdate, type MessageAuthor, getAuthor }`. `getAuthor(id)` es la función pública que `chat` importa (excepción acordada `chat → profiles`). |
-| `features/profiles/hooks/useProfile.ts` | *(opcional, solo si F2 lo pide)* hook del perfil propio. En F1 no se crea: los componentes de perfil actuales consumen `getUserInfo` vía server action. |
-| `features/profiles/components/` | *(opcional, F2)* Se decide en F2. F1 no crea componentes aquí. |
-| `features/chat/schemas.ts` | Contratos Zod de chat (ver §3.2). |
-| `features/chat/types.ts` | Tipos derivados de mensajes y payloads realtime (`z.infer` / union de payloads). |
-| `features/chat/actions.ts` | `listMessages`, `getMessagesRange`, `createMessage` (corrección `author` → `user_id`), `deleteMessage`. Server actions; errores tipados. |
-| `features/chat/index.ts` | API pública: `{ listMessages, getMessagesRange, createMessage, deleteMessage, type Message, type MessageWithAuthor, type MessageInsert, useMessagesRealtime }` (solo el hook `useMessagesRealtime`; un eventual hook de estado combinado se decide en F2/F3, ver §4). |
-| `features/chat/hooks/useMessagesRealtime.ts` | Hook que se suscribe a `postgres_changes` de `messages` (canal `messages_channel` o `postgres_changes:schema=public:table=messages`) y expone `add`, `update`, `remove`. |
-| `features/chat/hooks/useMessages.ts` (estado combinado, opcional) | *(opcional)* hook de estado que combina la llamada inicial con los eventos realtime emitidos por `useMessagesRealtime`; se decide en F2/F3 junto con la UI. F1 solo crea `useMessagesRealtime`. |
-| `lib/errors.ts` *(o en cada dominio)* | Clase `DomainError extends Error` para estandarizar errores tipados (REQ-12). Se acuerda con el orquestador antes de crear. |
+| Archivo | Intención (original) | Estado (2026-10-14) |
+| --- | --- | --- |
+| `supabase/migrations/20261009235112_reconexion_profiles_messages.sql` | Migración nueva (ver §3.3). | **Creado y aplicado.** Contiene RLS, RIF FULL, storage policies sobre el bucket `profiles_avatars`, índice `messages_user_id_idx` y grants (ver §6.1 "Decisión implementada"). |
+| `features/profiles/schemas.ts` | Contratos Zod de perfil (ver §3.1). | **Creado.** |
+| `features/profiles/types.ts` | Tipos derivados: sin interfaces a mano. | **Creado** (los types se re-exportan con `import type { z } …` + export de `z.infer`, forma equivalente). |
+| `features/profiles/actions.ts` | `getProfile`, `listProfiles`, `updateProfile`, `logOut`. | **Creado**, y se sumó `isAuthenticated` en F1 (bloqueo runtime). |
+| `features/profiles/index.ts` | API pública. | **Creado:** expone `getProfile`, `listProfiles`, `updateProfile`, `logOut`, `isAuthenticated`, `ProfilesError`, `messageAuthorSchema`, `type Profile`, `type ProfileUpdate`, `type MessageAuthor`. **No expone `getAuthor`** (la excepción `chat → profiles` se consume vía `listProfiles` + `messageAuthorSchema`). |
+| `features/profiles/errors.ts` | Error tipado del dominio (REQ-12). | **Creado** (`ProfilesError extends Error`). |
+| `features/profiles/hooks/useProfile.ts` | *(opcional, solo si F2 lo pide)* | **No creado.** En F1 no se usó. |
+| `features/profiles/components/` | *(opcional, F2)* | **No creado.** El perfil se sigue sirviendo desde `app/profile/`. |
+| `features/chat/schemas.ts` | Contratos Zod de chat (ver §3.2). | **Creado.** |
+| `features/chat/types.ts` | Tipos derivados + `RealtimeEventPayload`. | **Creado** (ver §3.2, bloque añadido). |
+| `features/chat/actions.ts` | `listMessages`, `getMessagesRange`, `createMessage` (corrección `author` → `user_id`), `deleteMessage`. | **Creado.** |
+| `features/chat/errors.ts` | Error tipado del dominio (REQ-12). | **Creado** (`ChatError extends Error`). |
+| `features/chat/index.ts` | API pública (ver §5, CA-10). | **Creado:** expone acciones, `ChatError`, tipos (`Message`, `MessageInsert`, `MessageWithAuthor`, `RealtimeEventPayload`), esquemas Zod y **`useMessagesRealtime`** (ver §3.2 para el tipo `RealtimeEventPayload`). |
+| `features/chat/hooks/useMessagesRealtime.ts` | Hook que se suscribe a `postgres_changes` de `messages`. | **Creado.** Canal `"messages-realtime"`, suscripción `postgres_changes` sobre `public.messages`, validación por evento (**verificada contra el código, 2026-10-14**): INSERT y UPDATE exigen `id` + `created_at` en `new`; **DELETE solo `old.id`** (decisión del 2026-10-14 por el payload truncado, ver REQ-5 / CA-5). |
+| `features/chat/hooks/useMessages.ts` (estado combinado, opcional) | *(opcional)* | **No creado.** La UI (`components/messagesModule.tsx`) hace la fusión idempotente por `id` directamente sobre la lista base. |
+| `lib/errors.ts` *(o en cada dominio)* | Clase `DomainError extends Error` central. | **Decisión: por dominio** — se crearon `features/profiles/errors.ts` y `features/chat/errors.ts` en su lugar (la opción "en cada dominio" de esta misma fila). |
 
-### Modificar
+### Modificar (ejecutado)
 
-| Archivo | Intención |
-| --- | --- |
-| `app/page.tsx` | Descomentar el `MessagesModule` o sustituirlo por el componente nuevo de `features/chat/` cuando exista (F3); en F1 se limita a ajustar imports si cambian de ubicación. |
-| `app/profile/page.tsx` (o la ruta que consume `services/profile.ts`) | Cambiar imports de `services/profile.ts` a `features/profiles/index.ts`. |
-| `app/profile/helps.ts` | Pasar de `createClient` local a `features/profiles/actions.ts` (sube el avatar y devuelve la URL) o crear una action dedicada; **eliminar `throw "Error al subir la imagen"`**. |
-| `components/messagesModule.tsx` | Consumir `features/chat/index.ts` (acciones + tipos) en vez de `services/messages.ts`; eliminar la `interface Message` duplicada (deuda `[F2]`). |
+| Archivo | Intención (original) | Estado (2026-10-14) |
+| --- | --- | --- |
+| `app/page.tsx` | Descomentar `MessagesModule` o sustituirlo por el componente nuevo. | **Restaurado** — renderiza `<MessagesModule userId={user?.id} />` (ver memoria F2 "Chat restaurado"). |
+| `app/profile/page.tsx` | Cambiar imports de `services/profile.ts` a `features/profiles/index.ts`. | **Hecho** — importa `getProfile` directamente de `@/features/profiles`. |
+| `app/profile/helps.ts` | Pasar a `features/profiles/actions.ts` o eliminar `throw "…"`. | **ELIMINADO 2026-10-14** (código muerto: `uploadFile`/`getPublicUrl` sin importadores; ver §6 "F2 cerrado" y `MEMORY.md` "Últimos cambios · F2"). |
+| `components/messagesModule.tsx` | Consumir `features/chat/index.ts`; eliminar `interface Message` duplicada. | **Hecho** — importa `type { Message, RealtimeEventPayload }` y `useMessagesRealtime` de `@/features/chat`; fusiona eventos idempotentemente por `id` (INSERT/UPDATE → upsert, DELETE → filtro por `old.id`). Sin `interface Message` local ni `author`. |
+| `components/modernListMessages.tsx` | *(no estaba en la propuesta)* | **Creado/reacondicionado en F2** — recibe `currentUserId` del server component y `onLoadMore`; resuelve avatar/nombre por el perfil del autor; botón "Cargar más" dentro de la card. |
 
-### Eliminar
+### Eliminar (ejecutado 2026-10-14)
 
 | Archivo | Motivo |
 | --- | --- |
 | `services/profile.ts` | Reemplazado por `features/profiles/actions.ts`. |
 | `services/messages.ts` | Reemplazado por `features/chat/actions.ts`. |
 | `features/users/` (carpeta completa: `actions.ts`, `types.ts`, `index.ts`) | Unificado en `features/profiles/`. |
+| `components/testChannel.tsx` | Legacy sin importadores; suscribía realtime dentro de un componente (violación de la regla dura 3 — realtime solo vive en `features/<domain>/hooks/`). Resuelto por F2. |
+| `components/listMessages.tsx` | Legacy sin importadores; superado por `modernListMessages.tsx`. Resuelto por F2. |
+| `components/createMessage.client.tsx` | Legacy sin importadores; superado por `components/createMessage.server.tsx`. Resuelto por F2. |
+| `app/profile/helps.ts` | Código muerto con `throw "Error al subir la imagen"` (regla dura 6). Resuelto por F2. |
 
 **No se modifica (intencional):**
 
 - `supabase/migrations/20261008015400_estado_actual.sql` — migración ya aplicada; **inmutable** (regla dura 5).
 - `lib/supabase/database.types.ts` — **solo** se regenera con `pnpm run gen:types` **después** de aplicar la migración nueva (el script de `package.json` escribe UTF-8; el redirecionamiento `>` directo en PowerShell produce UTF-16 y rompe ESLint).
 - `.opencode/agents/*.md`, `opencode.json` — fuera de esta feature.
-- `components/testChannel.tsx`, `lib/supabase/client.ts`, `services/authClient.ts`, `app/login/page.tsx` — la deuda de `tsc` por `supabaseClient` está **saldada** (2026-10-14): en esos archivos `supabaseClient` pasó a `createClient()` y `payload` quedó tipado. No queda pendiente. *(Ver P5.)*
+- `lib/supabase/client.ts`, `services/authClient.ts`, `app/login/page.tsx` — la deuda de `tsc` por `supabaseClient` está **saldada** (2026-10-14): en esos archivos `supabaseClient` pasó a `createClient()` y `payload` quedó tipado. No queda pendiente. *(Ver P5. `components/testChannel.tsx` fue **eliminado** en F2 — ver tabla "Eliminar".)*
 
 ### Dependencias entre dominios
 
-- `features/chat/index.ts` **importa** de `features/profiles/index.ts` solo `getAuthor` / `MessageAuthor` (excepción acordada `chat → profiles`, AGENTS.md §4).
+- `features/chat/schemas.ts` **importa** `messageAuthorSchema` de `features/profiles/index.ts` (excepción acordada `chat → profiles`, AGENTS.md §4); `features/chat/index.ts` re-exporta `messageAuthorSchema` para la UI. **No se implementa `getAuthor`** (la excepción `chat → profiles` se resuelve hoy vía `listProfiles` + `messageAuthorSchema` directo en `components/`).
 - Ningún dominio de F1 importa `services/*`.
 - Ningún archivo fuera de `features/**`, `docs/specs/**` o `supabase/migrations/**` lo toca `implementer` en F1; los files en `app/`, `components/`, `lib/errors.ts` los toca el orquestador (que tiene `app/**` y `lib/**` en su lista de permisos) o el `implementer` con la arena ampliada (decision 2026-10-09 en `MEMORY.md`).
 
@@ -324,7 +313,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 | CA-2 | REQ-1, REQ-3 | Los datos de `users` (id, email, user_name) existen en `profiles` con username intacto, `full_name` y `avatar_url` NULL. | `SELECT id, email, username, full_name, avatar_url FROM public.profiles LIMIT 10;` → las filas coinciden con las de `users` previas (comparar antes/después del `db reset`). |
 | CA-3 | REQ-3 | Un usuario autenticado puede SELECT/INSERT/UPDATE su propio perfil; SELECT de otros perfiles también funciona. | Prueba manual: logueado como `userA`, `getProfile()` devuelve su perfil; `listProfiles()` incluye el de `userA` y el de `userB`; `updateProfile({ username: "nuevo" })` actualiza solo al de `userA`. |
 | CA-4 | REQ-4 | Un usuario puede SELECT todos los mensajes; INSERT con `user_id = auth.uid()`; UPDATE/DELETE solo de sus propios mensajes; DELETE de un mensaje de otro no borra nada (retorna 0 filas). | Prueba manual con 2 usuarios (`A` y `B`): `A` crea 2 mensajes; `B` intenta `deleteMessage(idDeAMsg)` → `success: false` o `rows: 0`; `A` borra el propio → exit. |
-| CA-5 | REQ-5 | En realtime, los eventos `UPDATE` y `DELETE` de `messages` traen `old_record` completo. | Abrir 2 sesiones del chat; `A` edita un mensaje; `B` ve el `old_record` con `id`, `user_id`, `content`, `created_at` en el hook. |
+| CA-5 | REQ-5 | **Esquema (verificable):** `messages` con `REPLICA IDENTITY FULL`; `SELECT relreplident FROM pg_class WHERE oid = 'public.messages'::regclass;` → `f`. **Contrato esperado:** payloads de `DELETE`/`UPDATE` con registro completo. **Evidencia de runtime (stack local, sonda realtime independiente en el navegador, 2026-10-14, tras reiniciar el stack):** INSERT ✅ `new` completo `{id, content, user_id, created_at}`; UPDATE ✅ `new` completo; DELETE ❌ `old` = **solo `{id}`** (sin `content`, `user_id` ni `created_at`) → **REQ-5 no se cumple en local**, pese a RIF (posible diferencia de versión del servicio realtime). **Decisión implementada:** el hook `useMessagesRealtime` valida **solo `old.id`** en `DELETE` (INSERT/UPDATE siguen exigiendo `id` + `created_at`); `messagesModule.applyRealtimeEvent` solo consume `old.id` en DELETE, así que la app no se ve afectada. | (1) `SELECT relreplident FROM pg_class WHERE oid = 'public.messages'::regclass;` → `f`. (2) Sonda de runtime: abrir 2 pestañas del chat en `pnpm dev`; `A` crea y edita un mensaje → `B` ve INSERT/UPDATE con `new` completo; `A` borra → `B` ve `DELETE` con `old.id` (resto de campos ausentes) — **falla verificable en local**, no un defecto de la app. (3) **Aceptación plena (payload `old` completo)**: pendiente de repetir en un entorno cloud; si allí también llega truncado, se registra como limitación del servicio realtime (fuera del alcance de esta spec). Ver §6.1, P8. |
 | CA-6 | REQ-6 | Al crear un usuario nuevo vía Supabase Auth, `profiles` recibe la fila idempotentemente. | `psql -c "SELECT count(*) FROM auth.users"` antes y después del login de un `email` nuevo; `SELECT from profiles WHERE id = <nuevo id>` → 1 fila. Repetir el login → sigue en 1 fila (idempotentía del `ON CONFLICT`). |
 | CA-7 | REQ-7 | El bucket `profiles_avatars` existe, `public: true`; subida de `A` es visible para `B` por URL pública y no puede ser borrada por `B`. | `pnpm dlx supabase storage buckets list` → aparece `profiles_avatars`; prueba manual upload + `getPublicUrl`. |
 | CA-8 | REQ-8, REQ-10, REQ-12 | `features/profiles/` existe con `schemas.ts`, `types.ts`, `actions.ts`, `index.ts`; no hay `interface ... { ... }` a mano en `features/profiles/**` (salvo `types.ts` que solo hace `export type`); ningún `throw "texto"`; los tipos de retorno vienen de `z.infer`. | `pnpm exec tsc --noEmit` exit 0. `pnpm lint` exit 0. `Select-String -Path "features/profiles/**" -Pattern 'interface\s+\w+'` → sin matches. `Select-String -Path "features/**" -Pattern 'throw\s*"'` → sin matches. |
@@ -341,10 +330,29 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 ### Fuera de alcance (de F1, se cubren en fases siguientes)
 
-- **F2:** migrar `components/messagesModule.tsx`, `components/testChannel.tsx`, `services/authClient.ts` y `app/login/page.tsx` a los dominios nuevos; *(los 4 errores de `tsc` por `supabaseClient` ya quedaron saldados en 2026-10-14 —ver P5—, así que F2 no debe replantearlos)*; eliminar las `interface Message` duplicadas; quitar `console.log`.
-- **F3:** habilitar el chat en `app/page.tsx` y verificar realtime end-to-end con 2 sesiones del navegador.
+- **F2:** *(Cerrada 2026-10-14, ver §6.1.)* Los puntos de esta lista — `interface Message` duplicada, `console.log`, `supabaseClient` en componentes, migrar `messagesModule`/`testChannel`/`login` — están **resueltos**. Los 3 componentes legacy (`testChannel.tsx`, `listMessages.tsx`, `createMessage.client.tsx`) y `app/profile/helps.ts` fueron eliminados; la deuda de `tsc` quedó saldada 2026-10-14 (ver P5).
+- **F3:** verificación realtime entre usuarios distintos (CA-14) + creación del bucket `profiles_avatars` en Studio (CA-7) + cierre de P8 si `old` completo llega en cloud. UPDATE sin UI.
 - **F4:** specs formales para features nuevas (admin, hilos, edit, moderación, notificaciones).
 - **F5:** tests. **F6+ (pendiente de naming):** paginación real, rate-limiting, búsqueda por texto.
+
+### 6.1 Estado de avance (cierre F1 + F2, 2026-10-14)
+
+> Sincronizado contra el código del repositorio (2026-10-14). Ver `MEMORY.md` para el estado global y el smoke visual #2.
+
+**Hecho:**
+
+- F1 implementada: migración `20261009235112_reconexion_profiles_messages.sql` creada y aplicada (RLS, RIF FULL, trigger idempotente, storage policies, índice `messages_user_id_idx`, grants).
+- `features/profiles/` y `features/chat/` creados con esquemas Zod, tipos derivados, `errors.ts` por dominio, `actions.ts`, `index.ts` y `useMessagesRealtime.ts`.
+- `zod` instalado (`pnpm add zod`); `pnpm run gen:types` regeneró `lib/supabase/database.types.ts` sin diff vs. el stack local.
+- Deuda F2 saldada 2026-10-14: `interface Message` duplicada, `throw "..."`, `console.log`, realtime fuera de hooks, `supabaseClient` en componentes — todas resueltas; ver tabla "Eliminar" (§4) para `testChannel.tsx`, `listMessages.tsx`, `createMessage.client.tsx` y `app/profile/helps.ts`.
+- DoD en verde: `pnpm lint` 0 errores, `pnpm exec tsc --noEmit` 0, `pnpm build` 0.
+
+**Abierto:**
+
+- **Bucket `profiles_avatars` (CA-7):** aún no está creado en el stack local — el usuario lo crea en Studio (decisión P2); las policies de Storage sí están en la migración aplicada.
+- **CA-14 / F3:** verificación end-to-end entre usuarios distintos. Smoke #2 cubrió una sola sesión real (INSERT/UPDATE/DELETE en vivo, borrado externo por SQL) pero **sin un segundo usuario en paralelo**; UPDATE no tiene UI hoy.
+- **CA-5 (ver P8):** el `old` de `DELETE` llega truncado en el stack local; verificación con `old` completo pendiente de un entorno cloud.
+- **Burbuja doble transitoria del envío optimista** (observada por el reviewer, no visible en el smoke #2): cosmética y de ventana mínima; se arregla solo si se vuelve molesta.
 
 ### Preguntas abiertas (requieren decisión del usuario)
 
@@ -353,23 +361,25 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 - **P3.** ¿El `deleteMessage` restringido al autor es el comportamiento deseado, o se quiere un rol moderador/admin? La spec asume **solo el autor** (REQ-4 / policy `messages_delete_own`). Si se quiere moderación, es una feature nueva F4.
 - **P4.** ¿`messages_update_own` es un caso de uso de F1, o la policy debe eliminarse? La spec la incluye por paridad de RLS y porque el código actual ya no la usa; si se decide que F1 no edita mensajes, se elimina la policy y no se implementa el `updateMessage` en `actions.ts`. **Decisión pendiente.**
 - **P5.** *(Resuelta, 2026-10-14.)* Los 4 errores de `tsc` por `supabaseClient` ya se resolvieron en `app/login/page.tsx`, `components/testChannel.tsx` y `services/authClient.ts` (`supabaseClient` → `createClient()` y `payload` tipado); no queda deuda pendiente sobre este punto.
-- **P6.** ¿`app/profile/helps.ts` se mueve a `features/profiles/actions.ts` o se queda en `app/`? La spec propone moverla al dominio (regla: sin lógica de negocio en `app/`); el usuario debe confirmar.
+- **P6.** *(Resuelta 2026-10-14.)* `app/profile/helps.ts` se **eliminó** — era código muerto (`uploadFile`/`getPublicUrl` sin importadores); si en F3 se sube avatar, será una acción nueva de `features/profiles`.
 - **P7.** ¿El límite `content` de `messages` es 4000 chars (spec) u otro valor? Decidido a 4000 para F1; se puede ajustar.
+- **P8.** *(Abierta, 2026-10-14.)* CA-5/REQ-5: en el stack local `DELETE` llega con `old = { id }` solo, pese a `REPLICA IDENTITY FULL`. ¿Se acepta ese comportamiento como "contrato implementado" y se re-forza cuando el equipo se suba a cloud, o se busca un workaround (p. ej. `OLD` en el trigger, o `replica identity` a nivel función — no está soportado hoy por `supabase-js`)? El hook validó "solo `old.id`" como workaround local. **Decisión pendiente del usuario.**
 
-### Requiere aprobación del usuario
+### Requiere aprobación del usuario (estado 2026-10-14)
 
-| Acción | Motivo |
+| Acción | Estado |
 | --- | --- |
-| `pnpm add zod` | Nueva dependencia (AGENTS.md §2.3, regla dura 4). |
-| `pnpm dlx supabase db reset` | Aplica la migración nueva (AGENTS.md §13, decisión 2026-10-09: `db-supabase` no aplica migraciones). |
-| `pnpm run gen:types` | Regenera el único archivo de tipos del cliente Supabase (script de `package.json`, UTF-8). |
-| Crear el bucket `profiles_avatars` (manually o por script) | No hay migración estándar para buckets; decisión P2. |
+| `pnpm add zod` | **Aprobada e instalada.** |
+| `pnpm dlx supabase db reset` | **Aprobada y aplicada.** (ver §6.1) |
+| `pnpm run gen:types` | **Aprobada y ejecutada.** Sin diff vs. el stack local. |
+| Crear el bucket `profiles_avatars` (manually o por script) | **Pendiente** — el usuario lo crea en Studio (decisión P2); las policies de Storage ya están en la migración aplicada. |
+| Cierre de P8: decisión sobre payload `DELETE` truncado | **Pendiente** — see §6.1 / P8; si en cloud llega completo, se re-fuerza el hook y se documenta en `MEMORY.md`. |
 
 ---
 
 ## 7. Notas de implementación
 
 - El `implementer` **no ve skills** por diseño (AGENTS.md §13); las reglas de Zod/RLS/realtime viajan en el encargo que el orquestador le pasa.
-- `zod` no está instalado. El implementer **no debe** escribir `import { z } from "zod"` hasta que el usuario apruebe `pnpm add zod`. Mientras tanto, los files `schemas.ts` se dejan con el comentario `// TODO(zod): aprobar pnpm add zod` y las funciones de validación como `throw new DomainError("zod pendiente de instalar")`. *(Decisión del orquestador si prefiere bloquear todo hasta aprobación.)*
+- `zod` **aprobado e instalado** (2026-10-14). Los archivos `schemas.ts` se escribieron con `z` directamente.
 - No se usa `apply_migration` del MCP (AGENTS.md §13): toda migración es un archivo.
-- Todos los `throw` de strings en `services/**` se eliminan; los nuevos son `throw new DomainError(...)` o `throw new Error(...)` con mensaje corto.
+- Los `throw` de strings en `services/**` se eliminaron en F1; los nuevos son `throw new ProfilesError(...)` o `throw new ChatError(...)` con mensaje corto (ver §6.1).
