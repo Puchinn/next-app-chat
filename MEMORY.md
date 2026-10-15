@@ -93,7 +93,7 @@ Cada ítem lleva la fase en la que se resuelve.
 
 ## Siguientes pasos
 
-**Hecho (2026-10-15):** commits en `feat/design-refresh` y **merge fast-forward a `main`** (3 commits: `feat(profile)` avatar/spec 02 · `chore(skills)` skills vendorizadas · `feat(design)` sistema de diseño). **Pendiente: `git push` de `main` a `origin`** (17 commits sin empujar: F0.5/F2/F3 + los de hoy; requiere aprobación del usuario).
+**Hecho (2026-10-15):** commits en `feat/design-refresh` y **merge fast-forward a `main`** (3 commits: `feat(profile)` avatar/spec 02 · `chore(skills)` skills vendorizadas · `feat(design)` sistema de diseño); rama feature **borrada tras el merge**. **`git push` pendiente por decisión del usuario** (2026-10-15: mantener solo local; `main` va +18 commits sobre `origin/main` cuando decida empujar).
 
 **F2 — Migrar la UI legacy a los dominios:** ✅ **completada 2026-10-14** (ver "Últimos cambios · F2" y la deuda ya saldada del inventario).
 
