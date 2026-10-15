@@ -1,3 +1,4 @@
+import { Send } from "lucide-react";
 import { SubmitEvent } from "react";
 
 export function CreateMessageServerAction({
@@ -18,22 +19,25 @@ export function CreateMessageServerAction({
   };
 
   return (
-    <section className="space-y-1">
-      <form onSubmit={onSubmitForm}>
-        <div className="flex items-center w-full gap-x-4">
-          <label htmlFor="message" className="w-full">
-            <input
-              className="input"
-              placeholder="Escribir mensaje..."
-              name="message"
-              id="message"
-            />
-          </label>
-          <button type="submit" className="icon-btn" aria-label="Enviar">
-            📤
-          </button>
-        </div>
-      </form>
-    </section>
+    <form onSubmit={onSubmitForm}>
+      <div className="flex w-full items-center gap-3">
+        <label htmlFor="message" className="sr-only">
+          Mensaje
+        </label>
+        <input
+          className="input min-w-0 flex-1"
+          placeholder="Escribe un mensaje..."
+          name="message"
+          id="message"
+        />
+        <button
+          type="submit"
+          aria-label="Enviar mensaje"
+          className="btn shrink-0 p-2.5"
+        >
+          <Send className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+    </form>
   );
 }

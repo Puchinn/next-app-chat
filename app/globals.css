@@ -1,79 +1,91 @@
 @import "tailwindcss";
 
-:root {
-  --card-bg: #0f1724;
-  --muted: #94a3b8;
-  --accent-1: #10b981;
-  --accent-2: #06b6d4;
-  --color-blue-200: #bfdbfe;
+/*
+ * Sistema de diseño «Papel y tinta».
+ * Tokens en Tailwind 4 CSS-first: sin tailwind.config, todo vive en @theme.
+ * Las fuentes de next/font se enganchan aquí vía sus variables CSS.
+ */
+@theme {
+  /* Color */
+  --color-papel: #e9ece8;
+  --color-papel-alto: #ffffff;
+  --color-tinta: #12201b;
+  --color-tinta-suave: #4a5a52;
+  --color-verde: #0e5c43;
+  --color-verde-hover: #0a4733;
+  --color-borde: #d3d8d2;
+  --color-senal: #b45309;
+  --color-error: #9a3412;
+
+  /* Tipografía */
+  --font-display: var(--font-bricolage), sans-serif;
+  --font-sans: var(--font-geist-sans), sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Movimiento: una sola secuencia de entrada para la sala de chat */
+  --animate-room-enter: room-enter 0.35s ease-out both;
+
+  @keyframes room-enter {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 @layer base {
   body {
-    @apply bg-slate-900 text-slate-100;
+    @apply bg-papel text-tinta;
   }
 
   a {
-    @apply text-emerald-400;
+    @apply text-verde;
+  }
+
+  /* Foco visible global: anillo 2px tinta con offset sobre papel. */
+  :focus-visible {
+    outline: 2px solid var(--color-tinta);
+    outline-offset: 2px;
   }
 }
 
+/* Anillo claro sobre el carril de tinta (barra lateral y barra móvil). */
+.rail-tinta :focus-visible {
+  outline-color: var(--color-papel);
+}
+
 @layer components {
+  /* Botón primario (marca verde, sólido, nunca degradado). */
   .btn {
-    @apply inline-block px-4 py-2 rounded-md bg-gradient-to-br from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 transition shadow-md;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-verde px-4 py-2 text-white transition-colors hover:bg-verde-hover disabled:cursor-not-allowed disabled:opacity-60;
   }
 
+  /* Campo de texto: fondo papel-alto, borde hairline, foco tinta. */
   .input {
-    @apply border rounded-2xl p-3 text-slate-100 border-slate-700 w-full bg-slate-800/70;
+    @apply rounded-lg border border-borde bg-papel-alto px-3 py-2.5 text-tinta transition-colors placeholder:text-tinta-suave/70 focus-visible:border-tinta;
   }
 
+  /* Superficie plana (sin sombra: sombra solo en elementos sticky). */
   .card {
-    @apply bg-[color:var(--card-bg)] border border-slate-800/60 rounded-2xl shadow-2xl;
+    @apply rounded-xl border border-borde bg-papel-alto;
   }
 
-  .chat-card {
-    @apply flex flex-col h-[600px] w-full max-w-4xl mx-auto bg-[color:var(--card-bg)] border border-slate-800/60 rounded-2xl shadow-2xl overflow-hidden;
-  }
-
-  .chat-header {
-    @apply px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between;
-  }
-
-  .message-bubble-me {
-    @apply px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-tr-none;
-  }
-
-  .message-bubble-other {
-    @apply px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-md bg-slate-800/60 text-slate-200 rounded-tl-none border border-slate-700/40;
-  }
-
-  .delete-btn {
-    @apply w-9 h-9 flex justify-center items-center rounded-full text-slate-500 hover:text-rose-400 hover:bg-slate-800/80 opacity-0 group-hover:opacity-100 transition-all duration-200;
-  }
-
-  .icon-btn {
-    @apply rounded-full cursor-pointer p-2 text-2xl border bg-gray-100 border-gray-300;
-  }
-
+  /* Scrollbar fino en tonos tinta/borde. */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    scrollbar-color: var(--color-borde) transparent;
   }
 
   .custom-scrollbar::-webkit-scrollbar {
-    width: 10px;
+    width: 8px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.35);
+    background: var(--color-borde);
     border-radius: 9999px;
-  }
-
-  .chat-body {
-    padding-bottom: 5rem;
-  }
-
-  .input::placeholder {
-    color: rgba(148, 163, 184, 0.6);
   }
 }

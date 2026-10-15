@@ -110,17 +110,21 @@ export function MessagesModule({ userId }: ListMessagesProps) {
     getProfiles();
   }, [rangeMessages]);
 
+  // Columna de chat: la lista scrollea por dentro y el composer queda
+  // anclado abajo (sticky) dentro de la columna.
   return (
-    <div className="space-y-4">
-      <ChatList
-        profilesList={profiles}
-        messages={optimisticList}
-        currentUserId={userId}
-        onLoadMore={nextRange}
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <ChatList
+          profilesList={profiles}
+          messages={optimisticList}
+          currentUserId={userId}
+          onLoadMore={nextRange}
+        />
+      </div>
 
-      <div className="max-w-4xl mx-auto w-full px-4 flex items-center gap-4">
-        <div className="w-full">
+      <div className="sticky bottom-0 z-10 border-t border-borde bg-papel-alto px-4 py-3 shadow-sm">
+        <div className="mx-auto w-full max-w-4xl">
           <CreateMessageServerAction onSendMessage={onSendMessage} />
         </div>
       </div>

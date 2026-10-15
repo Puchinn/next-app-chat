@@ -1,32 +1,29 @@
-import { LogOutButton } from "@/components/logOut";
-import Link from "next/link";
+import { AppShell } from "@/components/appShell";
 import { Form } from "./form";
-import { getProfile } from "@/features/profiles";
+import { AvatarUpload, getProfile } from "@/features/profiles";
 
 export default async function Page() {
   const user = await getProfile();
 
   return (
-    <div className="p-2 space-y-2">
-      <nav className="card flex items-center max-w-7xl mx-auto w-full gap-3 p-3">
-        <div className="flex-1 h-auto">
-          <h2 className="text-lg font-bold text-slate-100">APPCITA</h2>
-        </div>
-        <LogOutButton />
-        <Link href={"/"} className="btn">
-          Home
-        </Link>
-      </nav>
-
-      <div className="max-w-md mx-auto my-10 bg-slate-900 text-white rounded-2xl shadow-xl overflow-hidden border border-slate-800">
-        <div className="p-8">
-          <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-            Editar Perfil
-          </h2>
+    <AppShell activeItem="profile">
+      <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-8">
+        <div className="card w-full max-w-md p-8">
+          <h1 className="mb-6 text-center font-display text-2xl text-tinta">
+            Editar perfil
+          </h1>
 
           <Form {...user} />
+
+          <h2 className="mb-4 mt-8 text-sm font-medium text-tinta-suave">
+            Foto de perfil
+          </h2>
+          <AvatarUpload
+            avatarUrl={user.avatar_url ?? null}
+            username={user.username ?? null}
+          />
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

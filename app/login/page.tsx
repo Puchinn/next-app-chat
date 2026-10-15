@@ -2,6 +2,7 @@
 
 import { SubmitEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -44,52 +45,64 @@ export default function Page() {
   };
 
   return (
-    <section className=" py-20">
-      {loading && (
-        <div className="absolute inset-0 w-full h-full">Cargando...</div>
-      )}
-
+    <section className="flex min-h-dvh items-center justify-center bg-papel px-4 py-12">
       <form
-        className="mx-auto space-y-4 max-w-md w-full p-6 card"
+        className="card mx-auto w-full max-w-md space-y-5 p-8"
         onSubmit={onSubmit}
       >
-        <h2 className="text-center text-2xl text-slate-100">Login</h2>
+        <header className="space-y-1 text-center">
+          <p className="font-display text-sm text-verde">APPCITA</p>
+          <h1 className="font-display text-2xl text-tinta">Iniciar sesión</h1>
+        </header>
 
-        <label className="flex flex-col" htmlFor="email">
-          Email:
+        <div className="space-y-1.5">
+          <label
+            className="block text-sm font-medium text-tinta"
+            htmlFor="email"
+          >
+            Correo
+          </label>
           <input
-            className="input"
+            className="input w-full"
             type="email"
             name="email"
             id="email"
             autoComplete="email"
           />
-        </label>
+        </div>
 
-        <label className="flex flex-col" htmlFor="password">
-          Password:
+        <div className="space-y-1.5">
+          <label
+            className="block text-sm font-medium text-tinta"
+            htmlFor="password"
+          >
+            Contraseña
+          </label>
           <input
-            className="input"
+            className="input w-full"
             type="password"
             name="password"
             id="password"
             autoComplete="current-password"
           />
-        </label>
+        </div>
 
-        <button className="btn" type="submit">
-          Entrar
+        <button className="btn w-full py-2.5" type="submit" disabled={loading}>
+          {loading && (
+            <Loader2
+              className="h-4 w-4 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          )}
+          {loading ? "Entrando…" : "Entrar"}
         </button>
 
         {dataError.error && (
-          <p className="text-red-500"> Mensaje: {dataError.message} </p>
+          <p role="alert" className="text-sm text-error">
+            {dataError.message}
+          </p>
         )}
       </form>
-
-      <div className="py-6 mx-auto text-center">
-        <p className="font-thin text-sm text-slate-400">sin cuenta?</p>
-        <button className="btn">Crear cuenta</button>
-      </div>
     </section>
   );
 }

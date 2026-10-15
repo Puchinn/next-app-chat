@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, SubmitEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { updateProfile } from "@/features/profiles";
 import type { Profile, ProfileUpdate } from "@/features/profiles";
 
 export function Form({ email, username }: Profile) {
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [inputs, setInputs] = useState<ProfileUpdate>({
     username: username || "Anonimo20200",
   });
@@ -20,10 +22,12 @@ export function Form({ email, username }: Profile) {
   const onSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSaved(false);
 
     try {
       await updateProfile(inputs);
       setLoading(false);
+      setSaved(true);
     } catch (error) {
       console.error(error);
       setLoading(false);
@@ -34,30 +38,24 @@ export function Form({ email, username }: Profile) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {loading && (
-        <div className="absolute flex items-center justify-center inset-0 w-full h-full bg-white/55">
-          <p>Cargando...</p>
-        </div>
-      )}
-
-      <hr className="border-slate-800" />
-
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <label
-          className="text-xs font-semibold text-slate-400 uppercase tracking-wider block"
+          className="block text-sm font-medium text-tinta"
           htmlFor="username"
         >
-          Nombre de Usuario
+          Nombre de usuario
         </label>
-        <div className="flex bg-slate-950 border border-slate-800 rounded-lg">
-          <span className="pr-1 pl-1 flex items-center text-slate-500">@</span>
+        <div className="flex w-full items-center rounded-lg border border-borde bg-papel-alto transition-colors focus-within:border-tinta">
+          <span aria-hidden="true" className="pl-3 text-tinta-suave">
+            @
+          </span>
           <input
             type="text"
             name="username"
             id="username"
             minLength={3}
             required
-            className="w-full pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
+            className="w-full min-w-0 bg-transparent px-2 py-2.5 text-sm text-tinta placeholder:text-tinta-suave/70 focus:outline-none"
             placeholder="usuario"
             value={inputs.username ?? ""}
             onChange={(e) => onInputsChange("username", e.target.value)}
@@ -65,24 +63,30 @@ export function Form({ email, username }: Profile) {
         </div>
       </div>
 
-      <div className="space-y-1">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-          Correo
-        </p>
-        <div className="flex bg-slate-950 opacity-85 border border-slate-800 rounded-lg">
-          <span className="pr-1 pl-1 flex items-center text-slate-500">@</span>
-          <p className="w-full pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors">
-            {email}
-          </p>
+      <div className="space-y-1.5">
+        <span className="block text-sm font-medium text-tinta">Correo</span>
+        <div className="flex w-full items-center rounded-lg border border-borde bg-papel px-3 py-2.5 text-sm text-tinta-suave">
+          <span aria-hidden="true" className="mr-1">
+            @
+          </span>
+          {email}
         </div>
       </div>
 
-      <button
-        type="submit"
-        className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium py-2.5 px-4 rounded-lg shadow-lg shadow-emerald-950/50 transition-all active:scale-[0.98]"
-      >
-        <span>Guardar Cambios</span>
+      <button type="submit" disabled={loading} className="btn w-full py-2.5">
+        {loading && (
+          <Loader2
+            className="h-4 w-4 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+        )}
+        {loading ? "Guardando…" : "Guardar cambios"}
       </button>
+
+      {/* Región viva: anuncia el éxito sin mover el foco. */}
+      <p role="status" aria-live="polite" className="text-sm text-verde">
+        {saved ? "Cambios guardados." : ""}
+      </p>
     </form>
   );
 }
