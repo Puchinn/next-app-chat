@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import { Image, Loader2 } from "lucide-react";
+import { Image as IconImage, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 import { AVATAR_MAX_BYTES, AVATAR_MIME_EXT } from "../schemas";
 import { deleteAvatar, uploadAvatar } from "../actions";
@@ -137,18 +138,18 @@ export function AvatarUpload({ avatarUrl, username }: AvatarUploadProps) {
   const canDelete = currentAvatar !== null && !busy && previewUrl === null;
 
   const effectiveSrc = previewUrl ?? currentAvatar;
-  const alt = username
-    ? `Avatar de ${username}`
-    : "Avatar del usuario";
+  const alt = username ? `Avatar de ${username}` : "Avatar del usuario";
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-4 rounded-xl border border-borde bg-papel-alto p-5">
         {effectiveSrc ? (
-          <img
+          <Image
             src={effectiveSrc}
             alt={alt}
             className="h-24 w-24 rounded-full object-cover"
+            width={96}
+            height={96}
           />
         ) : (
           <span className="flex h-24 w-24 items-center justify-center rounded-full bg-tinta font-display text-2xl font-medium text-papel">
@@ -166,7 +167,7 @@ export function AvatarUpload({ avatarUrl, username }: AvatarUploadProps) {
 
           <div className="flex rounded-lg border border-borde bg-papel-alto">
             <span className="flex items-center pl-3 pr-1 text-tinta-suave">
-              <Image className="h-4 w-4" aria-hidden="true" />
+              <IconImage className="h-4 w-4" aria-hidden="true" />
             </span>
             <input
               id="avatar-file-input"

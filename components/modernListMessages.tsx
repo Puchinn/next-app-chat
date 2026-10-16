@@ -5,6 +5,7 @@ import { DeleteButton } from "@/components/deleteButton";
 import type { Profile } from "@/features/profiles";
 import type { Message } from "@/features/chat";
 import { useEffect } from "react";
+import Image from "next/image";
 
 interface ListMessagesProps {
   messages: Message[];
@@ -119,10 +120,12 @@ export default function ChatWindow({
             >
               {/* Avatar: solo en el primero del grupo; sin URL usable, iniciales. */}
               {group.avatarUrl ? (
-                <img
+                <Image
                   src={group.avatarUrl}
                   alt={`Avatar de ${group.authorName}`}
                   className="h-10 w-10 shrink-0 rounded-full border border-borde object-cover"
+                  width={40}
+                  height={40}
                 />
               ) : (
                 <span
