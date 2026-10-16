@@ -26,8 +26,9 @@
 | ------ | ------------------------------------------------------------ | --------- | --------- | ------ |
 | F4.2   | `next/image` + `remotePatterns` para avatares                | Higiene    | **verificada** | 1   |
 | F4.3   | Fix: avatar cacheado al reemplazarlo con el mismo formato    | Bugfix     | **verificada** | 1   |
-| F4.4   | Fix: mensajes realtime desordenados rompen la agrupación      | Bugfix     | **implementado, pendiente smoke 2 usuarios** | 1   |
+| F4.4   | Fix: mensajes realtime desordenados rompen la agrupación      | Bugfix     | **verificada** | 2   |
 | F4.5   | Deuda: avatares huérfanos si falla el `remove` best-effort    | Deuda      | pendiente | 2      |
+| F4.6   | UI: el chat solo muestra HH:MM → mensajes de días distintos parecen desordenados | Mejora UI | pendiente | 2      |
 | F4.1   | Migrar `components/` legacy a `features/chat`                | Refactor   | pendiente | —      |
 | F5.1   | Stack de testing + primeros tests de `features/chat`          | Infra      | pendiente | —      |
 | F3.2   | Chat con 2 usuarios en paralelo + UPDATE sin UI              | Verificación | pendiente (el smoke de F4.4 lo cubre en parte) | —   |
@@ -36,7 +37,7 @@
 | F0.5.a | Encargo real de migración de `db-supabase` (`migration new` + `db reset`) | Verificación | pendiente | — |
 | F0.5.b | Causa raíz del fallo de modelo del `spec-writer`             | Deuda      | pendiente | —      |
 | P8     | Payload `DELETE` de realtime truncado: aceptar o re-forzar    | Decisión   | pendiente | —      |
-| P9     | Empujar `main` a `origin` (19 commits + los de esta sesión)   | Decisión   | pendiente | —      |
+| P9     | Empujar `main` a `origin` (23 commits por delante)            | Decisión   | pendiente | —      |
 
 **Orden acordado:** sanear antes de construir (higiene → refactor → tests →
 verificación runtime) y después features.
@@ -179,13 +180,39 @@ mutar el estado y `new Date(...).valueOf()` compara instantes, no strings.
 **Criterios de aceptación:**
 - CA-1 · Escenario real con 2 usuarios (2 pestañas, credenciales distintas):
   U1 envía 2 seguidos → U2 responde → U1 envía otro (todo <1 min) → se ve
-  U1·U1·U2·U1 en **ambas** pestañas. ⏳ pendiente
+  U1·U1·U2·U1 en **ambas** pestañas. ✅
 - CA-2 · "Cargar mensajes anteriores" no rompe el orden (los antiguos
-  arriba, cronológico global). ⏳ pendiente
+  arriba, cronológico global). ✅
 - CA-3 · Sin regresión del envío optimista: el mensaje propio aparece al
-  final al enviarlo y no cambia de sitio al confirmarse. ⏳ pendiente
+  final al enviarlo y no cambia de sitio al confirmarse. ✅
 - CA-4 · `pnpm lint`, `pnpm exec tsc --noEmit` y `pnpm build` en verde. ✅
   (lint 0 errores / 1 warning ajeno, tsc 0, build 0)
+
+**Cerrada 2026-10-16 (sesión 2). Evidencia del smoke** (`pnpm dev` en :3000 +
+`chrome-devtools`, stack local):
+1. **Determinista (el caso duro).** U1 (tester, navegador) envía `smoke U1 a` y
+   `smoke U1 b` (19:46:34 y 19:46:40). Después se inserta por SQL un mensaje de
+   **U2 con `created_at` retrocedido** entre ambos (19:46:36.5) → el evento
+   realtime llega **el último** pero el mensaje se pinta **entre** los dos de U1
+   (`a · U2 · b`) sin recargar. Sin el fix habría quedado `a · b · U2`.
+2. **Patrón literal del CA-1.** U1(b,c) → U2(`smoke U2 reply`) → U1(`smoke U1 d`)
+   → se ve U1·U1·U2·U1.
+3. Orden **intacto tras recargar**; "Cargar mensajes anteriores" también.
+4. Optimista: aparece al final al enviarlo y no se mueve al confirmarse; **no**
+   se observó la burbuja doble transitoria (deuda de F3, sigue sin reproducirse).
+5. Consola limpia (solo `React DevTools` + `[HMR] connected`).
+
+**Bonus del smoke:** el `DELETE` realtime de un borrado externo por SQL propagó
+a la UI (regresión de CA-5/P8 en verde). Datos de prueba eliminados al cerrar
+(6 filas `smoke %`).
+
+**Nota del escenario:** no hubo dos navegadores; U1 fue el navegador real y U2
+insertó por SQL/Postgres (el mismo camino WAL → realtime → suscripción del
+cliente), que es lo que importa para reproducir el desorden de llegada.
+
+**Hallazgo lateral → F4.6:** al inspeccionar el orden apareció que la UI solo
+pinta `HH:MM`, así que mensajes de **días distintos** parecen desordenados
+(13:47 · 20:04 · 16:36 con el orden correcto). No es el bug de F4.4, pero marea.
 
 **Qué enseña:** por qué un array "casi ordenado" no está ordenado, la
 diferencia entre orden de llegada y orden de autoría, y a no creerle al
@@ -208,6 +235,22 @@ URL actual. Probablemente entra cuando haya `db-supabase`/Storage en la nube.
 
 **Criterio de aceptación:** en el bucket solo queda el avatar vigente tras
 subir + reemplazar varias veces con un `remove` simulado como fallido.
+
+---
+
+### F4.6 — El chat solo muestra `HH:MM` (hallazgo de la sesión 2)
+
+**Síntoma.** Con mensajes de **días distintos** la lista parece desordenada:
+13:47 · 20:04 · 16:36 está en orden cronológico correcto (14, 15 y 16 de
+octubre), pero como solo se pinta la hora, se lee como un desorden.
+
+**Alcance a decidir:** separador de fecha por día ("Hoy", "Ayer", fecha corta)
+y/o pintar la fecha completa en mensajes de días anteriores. Toca
+`components/modernListMessages.tsx` (la hora vive en el encabezado del grupo) y
+el formateo (hoy se hace en el componente).
+
+**Criterio de aceptación:** dos días distintos en la lista se distinguen sin
+contar hacia atrás; el formato sigue en `es` y sin ruido visual.
 
 ---
 
@@ -246,8 +289,8 @@ sin workaround, o la limitación queda documentada con evidencia.
 ### P9 — Empujar `main` a `origin`
 
 **Decisión pendiente del usuario** (2026-10-15: mantener solo local). Cuando se
-decida empujar, es un `git push` de `main` (hoy +19 commits sobre `origin/main`,
-más los de esta sesión). Sin implicación de código.
+decida empujar, es un `git push` de `main` (hoy **23 commits** por delante de
+`origin/main`). Sin implicación de código.
 
 ---
 
