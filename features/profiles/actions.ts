@@ -27,7 +27,9 @@ export async function getProfile() {
     .eq("id", user.id)
     .single();
   if (error || !profile) {
-    throw new ProfilesError(`Error al obtener el perfil: ${error?.message ?? "sin datos"}`);
+    throw new ProfilesError(
+      `Error al obtener el perfil: ${error?.message ?? "sin datos"}`,
+    );
   }
 
   return profile;
@@ -39,7 +41,9 @@ export async function listProfiles() {
 
   const { data, error } = await supabase.from("profiles").select("*");
   if (error || !data) {
-    throw new ProfilesError(`Error al listar perfiles: ${error?.message ?? "sin datos"}`);
+    throw new ProfilesError(
+      `Error al listar perfiles: ${error?.message ?? "sin datos"}`,
+    );
   }
 
   return data;
@@ -66,7 +70,9 @@ export async function updateProfile(input: ProfileUpdate) {
     .select("*")
     .single();
   if (error || !profile) {
-    throw new ProfilesError(`Error al actualizar el perfil: ${error?.message ?? "sin datos"}`);
+    throw new ProfilesError(
+      `Error al actualizar el perfil: ${error?.message ?? "sin datos"}`,
+    );
   }
 
   return profile;
@@ -118,7 +124,10 @@ export async function uploadAvatar(file: File): Promise<AvatarResult> {
   // Validar tipo y tamaño antes de tocar almacenamiento.
   const ext = AVATAR_MIME_EXT[file.type];
   if (!ext) {
-    return avatarFailure("INVALID_TYPE", "Tipo de archivo no permitido. Usa JPEG, PNG, WebP o GIF.");
+    return avatarFailure(
+      "INVALID_TYPE",
+      "Tipo de archivo no permitido. Usa JPEG, PNG, WebP o GIF.",
+    );
   }
   if (file.size > AVATAR_MAX_BYTES) {
     return avatarFailure("TOO_LARGE", "La imagen supera el máximo de 2 MB.");
@@ -155,14 +164,17 @@ export async function uploadAvatar(file: File): Promise<AvatarResult> {
       }
     }
 
-    const newPath = `${user.id}/avatar.${ext}`;
+    const newPath = `${user.id}/${new Date().valueOf()}-avatar.${ext}`;
     const { error: uploadError } = await storage.upload(newPath, file, {
       cacheControl: "3600",
       upsert: false,
     });
     if (uploadError) {
       // Error de Storage: se devuelve, no se lanza.
-      return avatarFailure("STORAGE_ERROR", `Error al subir el avatar: ${uploadError.message}`);
+      return avatarFailure(
+        "STORAGE_ERROR",
+        `Error al subir el avatar: ${uploadError.message}`,
+      );
     }
 
     const { data: urlData } = storage.getPublicUrl(newPath);
@@ -182,7 +194,10 @@ export async function uploadAvatar(file: File): Promise<AvatarResult> {
       return avatarFailure("PROFILE_ERROR", err.message);
     }
     // Error inesperado (no ProfilesError): mensaje genérico en español.
-    return avatarFailure("PROFILE_ERROR", "Error inesperado al actualizar el avatar.");
+    return avatarFailure(
+      "PROFILE_ERROR",
+      "Error inesperado al actualizar el avatar.",
+    );
   }
 }
 
@@ -212,15 +227,21 @@ export async function deleteAvatar(): Promise<AvatarResult> {
     const oldPath = avatarPathFromPublicUrl(oldUrl);
     if (!oldPath) {
       // URL rotada / no del bucket esperado: se devuelve STORAGE_ERROR.
-      return avatarFailure("STORAGE_ERROR", "La URL del avatar no corresponde al bucket esperado.");
+      return avatarFailure(
+        "STORAGE_ERROR",
+        "La URL del avatar no corresponde al bucket esperado.",
+      );
     }
 
-    const { error: removeError } = await supabase
-      .storage.from(AVATAR_BUCKET)
+    const { error: removeError } = await supabase.storage
+      .from(AVATAR_BUCKET)
       .remove([oldPath]);
     if (removeError) {
       // Error de Storage: se devuelve, no se lanza.
-      return avatarFailure("STORAGE_ERROR", `Error al eliminar el avatar: ${removeError.message}`);
+      return avatarFailure(
+        "STORAGE_ERROR",
+        `Error al eliminar el avatar: ${removeError.message}`,
+      );
     }
 
     // Limpiar la URL en el perfil (reutiliza la acción existente; si lanza,
@@ -235,6 +256,9 @@ export async function deleteAvatar(): Promise<AvatarResult> {
       }
       return avatarFailure("PROFILE_ERROR", err.message);
     }
-    return avatarFailure("PROFILE_ERROR", "Error inesperado al actualizar el avatar.");
+    return avatarFailure(
+      "PROFILE_ERROR",
+      "Error inesperado al actualizar el avatar.",
+    );
   }
 }
