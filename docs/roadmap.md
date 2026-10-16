@@ -37,7 +37,7 @@
 | F0.5.a | Encargo real de migración de `db-supabase` (`migration new` + `db reset`) | Verificación | pendiente | — |
 | F0.5.b | Causa raíz del fallo de modelo del `spec-writer`             | Deuda      | pendiente | —      |
 | P8     | Payload `DELETE` de realtime truncado: aceptar o re-forzar    | Decisión   | pendiente | —      |
-| P9     | Empujar `main` a `origin` (23 commits por delante)            | Decisión   | pendiente | —      |
+| P9     | Empujar `main` a `origin` (decisión pendiente del usuario)    | Decisión   | pendiente | —      |
 
 **Orden acordado:** sanear antes de construir (higiene → refactor → tests →
 verificación runtime) y después features.
@@ -289,8 +289,9 @@ sin workaround, o la limitación queda documentada con evidencia.
 ### P9 — Empujar `main` a `origin`
 
 **Decisión pendiente del usuario** (2026-10-15: mantener solo local). Cuando se
-decida empujar, es un `git push` de `main` (hoy **23 commits** por delante de
-`origin/main`). Sin implicación de código.
+decida empujar, es un `git push` de `main`, que va **muy por delante** de
+`origin/main` (varias docenas de commits, sin número fijo aquí para no quedar
+stale). Sin implicación de código.
 
 ---
 
