@@ -52,7 +52,12 @@ export function MessagesModule({ userId }: ListMessagesProps) {
   // `events` sobre la base es idempotente por `id`, así que no hace falta
   // un effect que haga setState (y re-ejecutarlo tras refrescar el rango
   // no duplica mensajes).
-  const mergedMessages = events.reduce(applyRealtimeEvent, listMessages);
+  const mergedMessages = events
+    .reduce(applyRealtimeEvent, listMessages)
+    .toSorted(
+      (a, b) =>
+        new Date(a.created_at).valueOf() - new Date(b.created_at).valueOf(),
+    );
   const [optimisticList, setOptimisticList] =
     useOptimistic<Message[]>(mergedMessages);
 
